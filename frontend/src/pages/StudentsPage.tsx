@@ -1,16 +1,41 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { studentApi } from '../lib/api';
-import { Plus, Search, Filter, MoreVertical } from 'lucide-react';
+import { Plus, Search, Filter, MoreVertical, X } from 'lucide-react';
 
 export default function StudentsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    gender: 'MALE' as 'MALE' | 'FEMALE' | 'OTHER',
+    dateOfBirth: '',
+    address: '',
+    phone: '',
+  });
+
+  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ['students', { search, page }],
     queryFn: () => studentApi.getAll({ search, page }),
   });
+
+  const createMutation = useMutation({
+    mutationFn: studentApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      setShowModal(false);
+      setFormData({ firstName: '', lastName: '', gender: 'MALE', dateOfBirth: '', address: '', phone: '' });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    createMutation.mutate(formData);
+  };
 
   const students = data?.data?.data;
   const pagination = data?.data?.pagination;
@@ -22,7 +47,10 @@ export default function StudentsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Students</h1>
           <p className="text-gray-500">Manage student records and admissions</p>
         </div>
-        <button className="btn btn-primary">
+        <button 
+          onClick={() => setShowModal(true)}
+          className="btn btn-primary"
+        >
           <Plus className="w-5 h-5 mr-2" />
           Add Student
         </button>
@@ -123,6 +151,99 @@ export default function StudentsPage() {
           </div>
         )}
       </div>
+
+      {/* Add Student Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Add New Student</h2>
+              <button onClick={() => setShowModal(false)} className="p-1 hover:bg-gray-100 rounded">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.firstName}
+                    onChange={e => setFormData({...formData, firstName: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.lastName}
+                    onChange={e => setFormData({...formData, lastName: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                <select
+                  value={formData.gender}
+                  onChange={e => setFormData({...formData, gender: e.target.value as 'MALE' | 'FEMALE' | 'OTHER'})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                >
+                  <option value="MALE">Male</option>
+                  <option value="FEMALE">Female</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+                <input
+                  type="date"
+                  value={formData.dateOfBirth}
+                  onChange={e => setFormData({...formData, dateOfBirth: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={e => setFormData({...formData, phone: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                <input
+                  type="text"
+                  value={formData.address}
+                  onChange={e => setFormData({...formData, address: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="flex-1 btn btn-outline"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={createMutation.isPending}
+                  className="flex-1 btn btn-primary"
+                >
+                  {createMutation.isPending ? 'Adding...' : 'Add Student'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
