@@ -1,0 +1,795 @@
+// Amani School System - Database Schema
+// Prisma schema for the Amani operating system for private schools in Uganda
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// SCHOOLS & ORGANIZATIONS
+// ============================================
+
+model School {
+  id              String    @id @default(uuid())
+  name            String
+  registrationNo  String?   @unique
+  address         String?
+  phone           String?
+  email           String?
+  website         String?
+  logo            String?
+  motto           String?
+  
+  // Subscription
+  subscriptionPlan SubscriptionPlan @default(FREE_TRIAL)
+  subscriptionStart DateTime?
+  subscriptionEnd   DateTime?
+  
+  // Settings
+  currency        String    @default("UGX")
+  timezone        String    @default("Africa/Kampala")
+  academicYear    Int       @default(2024)
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  users           User[]
+  students        Student[]
+  classes         Class[]
+  academicTerms   AcademicTerm[]
+  feeStructures   FeeStructure[]
+  payments        Payment[]
+  saccoMembers    SaccoMember[]
+  saccoTransactions SaccoTransaction[]
+  announcements   Announcement[]
+  messages        Message[]
+  streams         Stream[]
+  subjects        Subject[]
+}
+
+enum SubscriptionPlan {
+  FREE_TRIAL
+  BASIC
+  PREMIUM
+  ENTERPRISE
+}
+
+// ============================================
+// USERS & AUTHENTICATION
+// ============================================
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  password        String
+  phone           String?
+  
+  // Profile
+  firstName       String
+  lastName        String
+  profileImage    String?
+  
+  // Role-based access
+  role            UserRole
+  
+  // School association
+  schoolId        String?
+  school          School?   @relation(fields: [schoolId], references: [id])
+  
+  // For parents - link to students
+  children        Student[] @relation("ParentStudents")
+  
+  // Auth tokens
+  resetToken      String?
+  resetTokenExpiry DateTime?
+  
+  // Status
+  isActive        Boolean   @default(true)
+  emailVerified   Boolean   @default(false)
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  createdStudents     Student[] @relation("CreatedBy")
+  teacherClasses      ClassTeacher[]
+  academicRecords     AcademicRecord[]
+  announcements       Announcement[] @relation("AnnouncementAuthor")
+  sentMessages        Message[] @relation("MessageSender")
+  saccoMember         SaccoMember?
+}
+
+enum UserRole {
+  SUPER_ADMIN     // Orun Technologies admin
+  SCHOOL_OWNER    // School owner
+  ADMIN           // School administrator
+  TEACHER         // Teacher
+  PARENT          // Parent/Guardian
+  STUDENT         // Student
+  ALUMNI          // Alumni
+}
+
+// ============================================
+// STUDENTS & ADMISSIONS
+// ============================================
+
+model Student {
+  id              String    @id @default(uuid())
+  studentNo       String    @unique
+  
+  // Personal info
+  firstName       String
+  lastName        String
+  middleName      String?
+  gender          Gender
+  dateOfBirth     DateTime?
+  placeOfBirth    String?
+  
+  // Contact
+  address         String?
+  phone           String?
+  
+  // Academic
+  classId         String?
+  class           Class?    @relation(fields: [classId], references: [id])
+  streamId        String?
+  stream          Stream?   @relation(fields: [streamId], references: [id])
+  admissionDate   DateTime  @default(now())
+  status          StudentStatus @default(ACTIVE)
+  
+  // Parent/Guardian
+  parentId        String?
+  parent          User?     @relation("ParentStudents", fields: [parentId], references: [id])
+  
+  // School
+  schoolId        String
+  school          School    @relation(fields: [schoolId], references: [id])
+  
+  // Metadata
+  createdById     String?
+  createdBy       User?     @relation("CreatedBy", fields: [createdById], references: [id])
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  payments        Payment[]
+  academicRecords AcademicRecord[]
+  feeBalances     FeeBalance[]
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  GRADUATED
+  TRANSFERRED
+  SUSPENDED
+  EXPILED
+}
+
+// ============================================
+// ACADEMICS
+// ============================================
+
+model Class {
+  id              String    @id @default(uuid())
+  name            String    // e.g., "Primary 1", "Senior 1"
+  level           Int       // Numeric level for ordering
+  streamId        String?
+  stream          Stream?   @relation(fields: [streamId], references: [id])
+  
+  // School
+  schoolId        String
+  school          School    @relation(fields: [schoolId], references: [id])
+  
+  // Academic term
+  academicTermId  String?
+  academicTerm    AcademicTerm? @relation(fields: [academicTermId], references: [id])
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  students        Student[]
+  subjects        ClassSubject[]
+  classTeachers   ClassTeacher[]
+  schedules       ClassSchedule[]
+}
+
+model Stream {
+  id              String    @id @default(uuid())
+  name            String    // e.g., "A", "B", "Science", "Arts"
+  
+  // School
+  schoolId        String
+  school          School    @relation(fields: [schoolId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  classes         Class[]
+  students        Student[]
+}
+
+model AcademicTerm {
+  id              String    @id @default(uuid())
+  name            String    // e.g., "Term 1 2024"
+  startDate       DateTime
+  endDate         DateTime
+  isCurrent       Boolean   @default(false)
+  
+  // School
+  schoolId        String
+  school          School    @relation(fields: [schoolId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  classes         Class[]
+  subjects        Subject[]
+  feeStructures   FeeStructure[]
+  academicRecords AcademicRecord[]
+}
+
+model Subject {
+  id              String    @id @default(uuid())
+  name            String
+  code            String?
+  description     String?
+  
+  // Academic term
+  academicTermId  String?
+  academicTerm    AcademicTerm? @relation(fields: [academicTermId], references: [id])
+  
+  // School
+  schoolId        String
+  school          School    @relation(fields: [schoolId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  classSubjects   ClassSubject[]
+  academicRecords AcademicRecord[]
+  classSchedules  ClassSchedule[]
+}
+
+model ClassSubject {
+  id              String    @id @default(uuid())
+  
+  classId         String
+  class           Class     @relation(fields: [classId], references: [id])
+  
+  subjectId       String
+  subject         Subject   @relation(fields: [subjectId], references: [id])
+  
+  teacherId       String?
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@unique([classId, subjectId])
+}
+
+model ClassTeacher {
+  id              String    @id @default(uuid())
+  
+  classId         String
+  class           Class     @relation(fields: [classId], references: [id])
+  
+  teacherId       String
+  teacher         User      @relation(fields: [teacherId], references: [id])
+  
+  isPrimary       Boolean   @default(false)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@unique([classId, teacherId])
+}
+
+model ClassSchedule {
+  id              String    @id @default(uuid())
+  
+  classId         String
+  class           Class     @relation(fields: [classId], references: [id])
+  
+  dayOfWeek       DayOfWeek
+  period          Int       // Period number
+  subjectId       String?
+  subject         Subject?  @relation(fields: [subjectId], references: [id])
+  teacherId       String?
+  startTime       String    // HH:mm format
+  endTime         String    // HH:mm format
+  room            String?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+model AcademicRecord {
+  id              String    @id @default(uuid())
+  
+  studentId       String
+  student         Student   @relation(fields: [studentId], references: [id])
+  
+  subjectId       String
+  subject         Subject   @relation(fields: [subjectId], references: [id])
+  
+  academicTermId  String
+  academicTerm    AcademicTerm @relation(fields: [academicTermId], references: [id])
+  
+  // Marks
+  marksObtained   Float?
+  maxMarks        Float     @default(100)
+  grade           String?
+  
+  // Teacher
+  teacherId       String?
+  teacher         User?     @relation(fields: [teacherId], references: [id])
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@unique([studentId, subjectId, academicTermId])
+}
+
+// ============================================
+// FEES & PAYMENTS
+// ============================================
+
+model FeeStructure {
+  id              String    @id @default(uuid())
+  name            String    // e.g., "Term 1 Tuition 2024"
+  description     String?
+  amount          Float
+  dueDate         DateTime?
+  
+  // Academic term
+  academicTermId  String?
+  academicTerm    AcademicTerm? @relation(fields: [academicTermId], references: [id])
+  
+  // School
+  schoolId        String
+  school          School    @relation(fields: [schoolId], references: [id])
+  
+  isOptional      Boolean   @default(false)
+  isRecurring     Boolean   @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  payments        Payment[]
+  feeBalances     FeeBalance[]
+}
+
+model FeeBalance {
+  id              String    @id @default(uuid())
+  
+  studentId       String
+  student         Student   @relation(fields: [studentId], references: [id])
+  
+  feeStructureId  String
+  feeStructure    FeeStructure @relation(fields: [feeStructureId], references: [id])
+  
+  amount          Float
+  paidAmount      Float     @default(0)
+  balance         Float
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  payments        Payment[]
+  
+  @@unique([studentId, feeStructureId])
+}
+
+model Payment {
+  id              String    @id @default(uuid())
+  receiptNo       String    @unique
+  
+  // Amounts
+  amount          Float
+  transactionFee  Float     @default(0)
+  totalAmount     Float
+  
+  // Payment details
+  paymentMethod   PaymentMethod
+  paymentChannel  String?   // e.g., "MTN Mobile Money", "Airtel Money"
+  transactionRef  String?   // External transaction reference
+  phoneNumber     String?
+  
+  // Status
+  status          PaymentStatus @default(PENDING)
+  
+  // Student & Fee
+  studentId       String
+  student         Student   @relation(fields: [studentId], references: [id])
+  
+  feeStructureId  String?
+  feeStructure    FeeStructure? @relation(fields: [feeStructureId], references: [id])
+  
+  feeBalanceId    String?
+  feeBalance      FeeBalance? @relation(fields: [feeBalanceId], references: [id])
+  
+  // School
+  schoolId        String
+  school          School    @relation(fields: [schoolId], references: [id])
+  
+  // Parent
+  paidById        String?
+  paidByName      String?
+  paidByPhone     String?
+  
+  // Notes
+  notes           String?
+  
+  // Timestamps
+  paymentDate     DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+enum PaymentMethod {
+  CASH
+  MOBILE_MONEY
+  BANK_TRANSFER
+  CARD
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+// ============================================
+// SACCO (Savings & Loans)
+// ============================================
+
+model SaccoMember {
+  id              String    @id @default(uuid())
+  memberNo        String    @unique
+  
+  // User
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id])
+  
+  // School
+  schoolId        String
+  school          School    @relation(fields: [schoolId], references: [id])
+  
+  // Membership
+  memberType      SaccoMemberType
+  status          SaccoStatus @default(ACTIVE)
+  
+  // Savings
+  totalSavings    Float     @default(0)
+  
+  // Loans
+  totalLoans      Float     @default(0)
+  outstandingLoan Float     @default(0)
+  
+  joinedAt        DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  transactions    SaccoTransaction[]
+  loanApplications LoanApplication[]
+}
+
+enum SaccoMemberType {
+  TEACHER
+  STAFF
+  ALUMNI
+}
+
+enum SaccoStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model SaccoTransaction {
+  id              String    @id @default(uuid())
+  transactionNo   String    @unique
+  
+  // Type
+  type            SaccoTransactionType
+  
+  // Amount
+  amount          Float
+  
+  // Balance after
+  balanceAfter    Float
+  
+  // Description
+  description     String?
+  
+  // Member
+  memberId        String
+  member          SaccoMember @relation(fields: [memberId], references: [id])
+  
+  // School
+  schoolId        String
+  school          School    @relation(fields: [schoolId], references: [id])
+  
+  // Reference
+  reference       String?
+  
+  // Timestamps
+  transactionDate DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+enum SaccoTransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  INTEREST
+  LOAN_DISBURSEMENT
+  LOAN_REPAYMENT
+  FEE
+}
+
+model LoanApplication {
+  id              String    @id @default(uuid())
+  applicationNo   String    @unique
+  
+  // Member
+  memberId        String
+  member          SaccoMember @relation(fields: [memberId], references: [id])
+  
+  // Loan details
+  amount          Float
+  purpose         String?
+  durationMonths  Int
+  
+  // Status
+  status          LoanStatus @default(PENDING)
+  approvedBy      String?
+  approvalDate    DateTime?
+  rejectionReason String?
+  
+  // Disbursement
+  disbursedAmount Float?
+  disbursementDate DateTime?
+  
+  // Repayment
+  monthlyRepayment Float?
+  
+  // Timestamps
+  appliedAt       DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  repayments       LoanRepayment[]
+}
+
+enum LoanStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  DISBURSED
+  COMPLETED
+  DEFAULTED
+}
+
+model LoanRepayment {
+  id              String    @id @default(uuid())
+  
+  applicationId   String
+  application     LoanApplication @relation(fields: [applicationId], references: [id])
+  
+  amount          Float
+  balanceAfter    Float
+  
+  // Payment details
+  paymentMethod   String?
+  transactionRef  String?
+  
+  // Timestamps
+  paidAt          DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+}
+
+// ============================================
+// COMMUNICATIONS
+// ============================================
+
+model Announcement {
+  id              String    @id @default(uuid())
+  title           String
+  content         String
+  
+  // Type
+  type            AnnouncementType
+  
+  // Priority
+  priority        AnnouncementPriority @default(NORMAL)
+  
+  // Scope
+  scope           AnnouncementScope @default(ALL)
+  
+  // Class filter
+  classId         String?
+  
+  // Author
+  authorId        String
+  author          User      @relation("AnnouncementAuthor", fields: [authorId], references: [id])
+  
+  // School
+  schoolId        String
+  school          School    @relation(fields: [schoolId], references: [id])
+  
+  // Status
+  isPublished     Boolean   @default(false)
+  publishedAt     DateTime?
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+enum AnnouncementType {
+  GENERAL
+  ACADEMIC
+  FINANCIAL
+  EVENT
+  URGENT
+}
+
+enum AnnouncementPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum AnnouncementScope {
+  ALL
+  STUDENTS
+  PARENTS
+  TEACHERS
+  STAFF
+  CLASS
+}
+
+model Message {
+  id              String    @id @default(uuid())
+  
+  // Content
+  subject         String?
+  body            String
+  
+  // Type
+  type            MessageType
+  
+  // Sender
+  senderId        String
+  sender          User      @relation("MessageSender", fields: [senderId], references: [id])
+  
+  // School
+  schoolId        String
+  school          School    @relation(fields: [schoolId], references: [id])
+  
+  // Recipients
+  recipients      MessageRecipient[]
+  
+  // Timestamps
+  sentAt          DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+enum MessageType {
+  INDIVIDUAL
+  GROUP
+  BROADCAST
+}
+
+model MessageRecipient {
+  id              String    @id @default(uuid())
+  
+  messageId       String
+  message         Message   @relation(fields: [messageId], references: [id])
+  
+  recipientId     String
+  recipientEmail  String
+  recipientName   String?
+  
+  // Status
+  isRead          Boolean   @default(false)
+  readAt          DateTime?
+  
+  // Channel
+  channel         MessageChannel @default(IN_APP)
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  
+  @@unique([messageId, recipientId])
+}
+
+enum MessageChannel {
+  IN_APP
+  SMS
+  EMAIL
+  WHATSAPP
+}
+
+// ============================================
+// AUDIT & SYSTEM
+// ============================================
+
+model AuditLog {
+  id              String    @id @default(uuid())
+  
+  // Action
+  action          String
+  entity          String
+  entityId        String?
+  
+  // Changes
+  oldValues       Json?
+  newValues       Json?
+  
+  // User
+  userId          String?
+  userEmail       String?
+  ipAddress       String?
+  userAgent       String?
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+}
+
+model SystemSetting {
+  id              String    @id @default(uuid())
+  
+  key             String    @unique
+  value           Json
+  
+  description     String?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
