@@ -34,7 +34,7 @@ router.post('/', authMiddleware, authorize('SCHOOL_OWNER', 'ADMIN', 'TEACHER'), 
   if (!schoolId) {
     res.status(400).json({
       success: false,
-      message: 'School not found',
+      message: 'Please set up your school first',
     });
     return;
   }
@@ -70,8 +70,9 @@ router.get('/', authMiddleware, asyncHandler(async (req: AuthRequest, res: Respo
   const schoolId = req.user?.schoolId;
   const { classId, status, search, page = '1', limit = '20' } = req.query;
   
+  // If no schoolId, return empty array for demo purposes
   if (!schoolId) {
-    res.status(400).json({ success: false, message: 'School not found' });
+    res.json({ success: true, data: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } });
     return;
   }
   
