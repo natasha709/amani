@@ -45,6 +45,46 @@ async function main() {
   console.log('Created admin user:', admin.email);
   console.log('Password: admin123');
   console.log('School: ' + school.name);
+
+  // Get all schools
+  const schools = await prisma.school.findMany();
+  console.log('Found schools:', schools.length);
+
+  // Create default classes (Primary 1 to Senior 6) for all schools
+  const classLevels = [
+    { name: 'Primary One', level: 1 },
+    { name: 'Primary Two', level: 2 },
+    { name: 'Primary Three', level: 3 },
+    { name: 'Primary Four', level: 4 },
+    { name: 'Primary Five', level: 5 },
+    { name: 'Primary Six', level: 6 },
+    { name: 'Primary Seven', level: 7 },
+    { name: 'Senior One', level: 8 },
+    { name: 'Senior Two', level: 9 },
+    { name: 'Senior Three', level: 10 },
+    { name: 'Senior Four', level: 11 },
+    { name: 'Senior Five', level: 12 },
+    { name: 'Senior Six', level: 13 },
+  ];
+
+  for (const s of schools) {
+    for (const cls of classLevels) {
+      const classId = `${s.id}-${cls.name}`;
+      await prisma.class.upsert({
+        where: { id: classId },
+        update: {},
+        create: {
+          id: classId,
+          name: cls.name,
+          level: cls.level,
+          schoolId: s.id,
+        },
+      });
+    }
+    console.log(`Created classes for school: ${s.name}`);
+  }
+
+  console.log('Created classes:', classLevels.map(c => c.name).join(', '));
 }
 
 main()
