@@ -1,12 +1,133 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { studentApi, academicApi } from '../lib/api';
+import { countryCodes } from '../lib/countryCodes';
 import { Plus, Search, Filter, X, Eye, Pencil, Trash2 } from 'lucide-react';
+
+// Edit Student Form Component
+function EditStudentForm({ student, classes, onSubmit, onCancel, isLoading }: {
+  student: any;
+  classes: any[];
+  onSubmit: (data: any) => void;
+  onCancel: () => void;
+  isLoading: boolean;
+}) {
+  const [formData, setFormData] = useState({
+    firstName: student.firstName || '',
+    lastName: student.lastName || '',
+    gender: student.gender || 'MALE',
+    classId: student.classId || '',
+    phone: student.phone || '',
+    address: student.address || '',
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const dataToSend = Object.fromEntries(
+      Object.entries(formData).filter(([_, value]) => value !== '')
+    );
+    onSubmit(dataToSend);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+          <input
+            type="text"
+            required
+            value={formData.firstName}
+            onChange={e => setFormData({...formData, firstName: e.target.value})}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+          <input
+            type="text"
+            required
+            value={formData.lastName}
+            onChange={e => setFormData({...formData, lastName: e.target.value})}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Gender *</label>
+          <select
+            required
+            value={formData.gender}
+            onChange={e => setFormData({...formData, gender: e.target.value})}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+          >
+            <option value="MALE">Male</option>
+            <option value="FEMALE">Female</option>
+            <option value="OTHER">Other</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+          <select
+            value={formData.classId}
+            onChange={e => setFormData({...formData, classId: e.target.value})}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+          >
+            <option value="">Select Class</option>
+            {classes.map((cls: any) => (
+              <option key={cls.id} value={cls.id}>{cls.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+          <input
+            type="tel"
+            value={formData.phone}
+            onChange={e => setFormData({...formData, phone: e.target.value})}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+          <input
+            type="text"
+            value={formData.address}
+            onChange={e => setFormData({...formData, address: e.target.value})}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+          />
+        </div>
+      </div>
+      <div className="flex gap-3 pt-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 btn btn-outline"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="flex-1 btn btn-primary"
+        >
+          {isLoading ? 'Saving...' : 'Save Changes'}
+        </button>
+      </div>
+    </form>
+  );
+}
 
 export default function StudentsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
+  const [viewStudent, setViewStudent] = useState<any>(null);
+  const [editStudent, setEditStudent] = useState<any>(null);
+  const [deleteStudent, setDeleteStudent] = useState<any>(null);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -14,8 +135,9 @@ export default function StudentsPage() {
     classId: '',
     parentFirstName: '',
     parentLastName: '',
-    address: '',
     phone: '',
+    countryCode: '+256',
+    address: '',
   });
 
   const queryClient = useQueryClient();
@@ -38,16 +160,44 @@ export default function StudentsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
       setShowModal(false);
-      setFormData({ firstName: '', lastName: '', gender: 'MALE', classId: '', parentFirstName: '', parentLastName: '', address: '', phone: '' });
+      setFormData({ firstName: '', lastName: '', gender: 'MALE', classId: '', parentFirstName: '', parentLastName: '', phone: '', countryCode: '+256', address: '' });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => studentApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      setEditStudent(null);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => studentApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      setDeleteStudent(null);
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Filter out empty values before sending
+
+    // Validate phone number
+    const phoneRegex = /^\d{9}$/;
+    const phoneDigits = formData.phone.replace(/\s/g, '');
+    if (!phoneRegex.test(phoneDigits)) {
+      alert('Please enter a valid 9-digit phone number (e.g., 772123456)');
+      return;
+    }
+
+    // Filter out empty values and combine phone with country code
     const dataToSend = Object.fromEntries(
-      Object.entries(formData).filter(([_, value]) => value !== '')
+      Object.entries({ ...formData, phone: formData.countryCode + formData.phone }).filter(([_, value]) => value !== '')
     );
+    // Remove countryCode from dataToSend as it's already combined
+    delete dataToSend.countryCode;
+
     createMutation.mutate(dataToSend);
   };
 
@@ -61,7 +211,7 @@ export default function StudentsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Students</h1>
           <p className="text-gray-500">Manage student records and admissions</p>
         </div>
-        <button 
+        <button
           onClick={() => setShowModal(true)}
           className="btn btn-primary"
         >
@@ -122,20 +272,31 @@ export default function StudentsPage() {
                     )}
                   </td>
                   <td>
-                    <span className={`badge ${
-                      student.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'
-                    }`}>
+                    <span className={`badge ${student.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'
+                      }`}>
                       {student.status}
                     </span>
                   </td>
                   <td className="flex items-center gap-2">
-                    <button className="p-1.5 hover:bg-blue-50 text-blue-600 rounded" title="View">
+                    <button 
+                      onClick={() => setViewStudent(student)}
+                      className="p-1.5 hover:bg-blue-50 text-blue-600 rounded" 
+                      title="View"
+                    >
                       <Eye className="w-4 h-4" />
                     </button>
-                    <button className="p-1.5 hover:bg-yellow-50 text-yellow-600 rounded" title="Edit">
+                    <button 
+                      onClick={() => setEditStudent(student)}
+                      className="p-1.5 hover:bg-yellow-50 text-yellow-600 rounded" 
+                      title="Edit"
+                    >
                       <Pencil className="w-4 h-4" />
                     </button>
-                    <button className="p-1.5 hover:bg-red-50 text-red-600 rounded" title="Delete">
+                    <button 
+                      onClick={() => setDeleteStudent(student)}
+                      className="p-1.5 hover:bg-red-50 text-red-600 rounded" 
+                      title="Delete"
+                    >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </td>
@@ -144,7 +305,7 @@ export default function StudentsPage() {
             </tbody>
           </table>
         )}
-        
+
         {/* Pagination */}
         {pagination && (
           <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
@@ -174,110 +335,128 @@ export default function StudentsPage() {
 
       {/* Add Student Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100 shrink-0">
               <h2 className="text-xl font-bold">Add New Student</h2>
-              <button onClick={() => setShowModal(false)} className="p-1 hover:bg-gray-100 rounded">
+              <button type="button" onClick={() => setShowModal(false)} className="p-1 hover:bg-gray-100 rounded">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.firstName}
-                    onChange={e => setFormData({...formData, firstName: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.firstName}
+                      onChange={e => setFormData({ ...formData, firstName: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.lastName}
+                      onChange={e => setFormData({ ...formData, lastName: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.lastName}
-                    onChange={e => setFormData({...formData, lastName: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Gender *</label>
+                    <select
+                      required
+                      value={formData.gender}
+                      onChange={e => setFormData({ ...formData, gender: e.target.value as 'MALE' | 'FEMALE' | 'OTHER' })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value="MALE">Male</option>
+                      <option value="FEMALE">Female</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+                    <select
+                      value={formData.classId}
+                      onChange={e => setFormData({ ...formData, classId: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value="">Select Class</option>
+                      {classes.map((cls: any) => (
+                        <option key={cls.id} value={cls.id}>{cls.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Parent First Name</label>
+                    <input
+                      type="text"
+                      value={formData.parentFirstName}
+                      onChange={e => setFormData({ ...formData, parentFirstName: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Parent Last Name</label>
+                    <input
+                      type="text"
+                      value={formData.parentLastName}
+                      onChange={e => setFormData({ ...formData, parentLastName: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                    <input
+                      type="text"
+                      value={formData.address}
+                      onChange={e => setFormData({ ...formData, address: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
+                    <div className="flex w-full">
+                      <select
+                        value={formData.countryCode}
+                        onChange={e => setFormData({ ...formData, countryCode: e.target.value })}
+                        className="w-[110px] sm:w-[130px] px-3 py-2 border border-gray-300 border-r-0 rounded-l-lg bg-gray-50 text-gray-700"
+                      >
+                        {countryCodes.sort((a, b) => a.country.localeCompare(b.country)).map((c) => (
+                          <option key={`${c.code}-${c.country}`} value={c.code}>
+                            {c.code} ({c.country})
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="tel"
+                        required
+                        placeholder="772123456"
+                        value={formData.phone}
+                        onChange={e => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 9) })}
+                        className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-r-lg"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Enter 9 digits (e.g., 772123456)</p>
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender *</label>
-                  <select
-                    required
-                    value={formData.gender}
-                    onChange={e => setFormData({...formData, gender: e.target.value as 'MALE' | 'FEMALE' | 'OTHER'})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value="MALE">Male</option>
-                    <option value="FEMALE">Female</option>
-                    <option value="OTHER">Other</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
-                  <select
-                    value={formData.classId}
-                    onChange={e => setFormData({...formData, classId: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value="">Select Class</option>
-                    {classes.map((cls: any) => (
-                      <option key={cls.id} value={cls.id}>{cls.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Parent First Name</label>
-                  <input
-                    type="text"
-                    value={formData.parentFirstName}
-                    onChange={e => setFormData({...formData, parentFirstName: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Parent Last Name</label>
-                  <input
-                    type="text"
-                    value={formData.parentLastName}
-                    onChange={e => setFormData({...formData, parentLastName: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                  <input
-                    type="text"
-                    value={formData.address}
-                    onChange={e => setFormData({...formData, address: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={e => setFormData({...formData, phone: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-              </div>
-              <div className="flex gap-3 pt-2">
+              <div className="flex gap-3 p-6 border-t border-gray-100 bg-gray-50 rounded-b-xl shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="flex-1 btn btn-outline"
+                  className="flex-1 btn btn-outline bg-white"
                 >
                   Cancel
                 </button>
@@ -290,6 +469,130 @@ export default function StudentsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Student Modal */}
+      {viewStudent && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Student Details</h2>
+              <button onClick={() => setViewStudent(null)} className="p-1 hover:bg-gray-100 rounded">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Student No.</p>
+                  <p className="font-medium">{viewStudent.studentNo}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Status</p>
+                  <span className={`badge ${viewStudent.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'}`}>
+                    {viewStudent.status}
+                  </span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">First Name</p>
+                  <p className="font-medium">{viewStudent.firstName}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Last Name</p>
+                  <p className="font-medium">{viewStudent.lastName}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Gender</p>
+                  <p className="font-medium">{viewStudent.gender}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Class</p>
+                  <p className="font-medium">{viewStudent.class?.name || 'Not assigned'}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Phone</p>
+                  <p className="font-medium">{viewStudent.phone || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Address</p>
+                  <p className="font-medium">{viewStudent.address || '-'}</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Parent/Guardian</p>
+                <p className="font-medium">
+                  {viewStudent.parent 
+                    ? `${viewStudent.parent.firstName} ${viewStudent.parent.lastName}` 
+                    : '-'}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button onClick={() => setViewStudent(null)} className="btn btn-outline">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Student Modal */}
+      {editStudent && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-auto">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 my-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Edit Student</h2>
+              <button onClick={() => setEditStudent(null)} className="p-1 hover:bg-gray-100 rounded">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <EditStudentForm 
+              student={editStudent} 
+              classes={classes}
+              onSubmit={(data) => updateMutation.mutate({ id: editStudent.id, data })}
+              onCancel={() => setEditStudent(null)}
+              isLoading={updateMutation.isPending}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteStudent && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Delete Student</h2>
+              <button onClick={() => setDeleteStudent(null)} className="p-1 hover:bg-gray-100 rounded">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-gray-600 mb-4">
+              Are you sure you want to delete student <strong>{deleteStudent.firstName} {deleteStudent.lastName}</strong>?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteStudent(null)}
+                className="flex-1 btn btn-outline"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteMutation.mutate(deleteStudent.id)}
+                disabled={deleteMutation.isPending}
+                className="flex-1 btn bg-red-600 text-white hover:bg-red-700"
+              >
+                {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
           </div>
         </div>
       )}
