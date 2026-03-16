@@ -59,6 +59,8 @@ export const authMiddleware = async (
       return;
     }
 
+    console.log('User schoolId:', user.schoolId); // Debug log
+
     req.user = {
       id: user.id,
       email: user.email,
