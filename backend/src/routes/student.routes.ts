@@ -3,6 +3,7 @@
 
 import { Router, Response } from 'express';
 import { z } from 'zod';
+import bcrypt from 'bcryptjs';
 import { prisma } from '../config/database';
 import { authMiddleware, authorize, AuthRequest } from '../middleware/auth.middleware';
 import { asyncHandler } from '../middleware/error.middleware';
@@ -19,9 +20,11 @@ const createStudentSchema = z.object({
   placeOfBirth: z.string().optional(),
   address: z.string().optional(),
   phone: z.string().optional(),
-  classId: z.string().uuid().optional(),
-  streamId: z.string().uuid().optional(),
-  parentId: z.string().uuid().optional(),
+  classId: z.string().optional(),
+  streamId: z.string().optional(),
+  parentId: z.string().optional(),
+  parentFirstName: z.string().optional(),
+  parentLastName: z.string().optional(),
 });
 
 const updateStudentSchema = createStudentSchema.partial();
@@ -29,27 +32,68 @@ const updateStudentSchema = createStudentSchema.partial();
 // POST /api/v1/students - Create new student (admission)
 router.post('/', authMiddleware, authorize('SCHOOL_OWNER', 'ADMIN', 'TEACHER'), asyncHandler(async (req: AuthRequest, res: Response) => {
   const data = createStudentSchema.parse(req.body);
-  const schoolId = req.user?.schoolId;
+  let schoolId = req.user?.schoolId;
   
+  // If no schoolId, create a default school for the user
   if (!schoolId) {
-    res.status(400).json({
-      success: false,
-      message: 'Please set up your school first',
+    const newSchool = await prisma.school.create({
+      data: {
+        name: 'My School',
+        currency: 'UGX',
+        timezone: 'Africa/Kampala',
+      },
     });
-    return;
+    
+    await prisma.user.update({
+      where: { id: req.user?.id },
+      data: { schoolId: newSchool.id },
+    });
+    
+    schoolId = newSchool.id;
   }
   
   // Generate student number
   const count = await prisma.student.count({ where: { schoolId } });
   const studentNo = `STU-${String(count + 1).padStart(5, '0')}`;
   
+  // Handle parent - create new user with PARENT role if parent details provided
+  let parentId = data.parentId;
+  if (!parentId && data.parentFirstName && data.parentLastName) {
+    try {
+      const hashedPassword = await bcrypt.hash('parent123', 12);
+      const parent = await prisma.user.create({
+        data: {
+          email: `parent_${Date.now()}@amanischool.com`,
+          password: hashedPassword,
+          firstName: data.parentFirstName,
+          lastName: data.parentLastName,
+          phone: data.phone || '',
+          schoolId,
+          role: 'PARENT',
+        },
+      });
+      parentId = parent.id;
+    } catch (error) {
+      console.error('Failed to create parent:', error);
+    }
+  }
+  
   const student = await prisma.student.create({
     data: {
-      ...data,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      middleName: data.middleName,
+      gender: data.gender,
+      dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
+      placeOfBirth: data.placeOfBirth,
+      address: data.address,
+      phone: data.phone,
+      classId: data.classId || null,
+      streamId: data.streamId || null,
+      parentId: parentId || null,
       studentNo,
       schoolId,
       createdById: req.user?.id,
-      dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
     },
     include: {
       class: true,
