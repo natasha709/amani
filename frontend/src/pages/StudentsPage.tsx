@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { studentApi } from '../lib/api';
-import { Plus, Search, Filter, MoreVertical, X } from 'lucide-react';
+import { studentApi, academicApi } from '../lib/api';
+import { Plus, Search, Filter, X, Eye, Pencil, Trash2 } from 'lucide-react';
 
 export default function StudentsPage() {
   const [search, setSearch] = useState('');
@@ -11,12 +11,22 @@ export default function StudentsPage() {
     firstName: '',
     lastName: '',
     gender: 'MALE' as 'MALE' | 'FEMALE' | 'OTHER',
-    dateOfBirth: '',
+    classId: '',
+    parentFirstName: '',
+    parentLastName: '',
     address: '',
     phone: '',
   });
 
   const queryClient = useQueryClient();
+
+  // Fetch classes
+  const { data: classesData } = useQuery({
+    queryKey: ['classes'],
+    queryFn: () => academicApi.getClasses(),
+  });
+
+  const classes = classesData?.data?.data || [];
 
   const { data, isLoading } = useQuery({
     queryKey: ['students', { search, page }],
@@ -28,13 +38,17 @@ export default function StudentsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
       setShowModal(false);
-      setFormData({ firstName: '', lastName: '', gender: 'MALE', dateOfBirth: '', address: '', phone: '' });
+      setFormData({ firstName: '', lastName: '', gender: 'MALE', classId: '', parentFirstName: '', parentLastName: '', address: '', phone: '' });
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createMutation.mutate(formData);
+    // Filter out empty values before sending
+    const dataToSend = Object.fromEntries(
+      Object.entries(formData).filter(([_, value]) => value !== '')
+    );
+    createMutation.mutate(dataToSend);
   };
 
   const students = data?.data?.data;
@@ -114,9 +128,15 @@ export default function StudentsPage() {
                       {student.status}
                     </span>
                   </td>
-                  <td>
-                    <button className="p-1 hover:bg-gray-100 rounded">
-                      <MoreVertical className="w-5 h-5 text-gray-500" />
+                  <td className="flex items-center gap-2">
+                    <button className="p-1.5 hover:bg-blue-50 text-blue-600 rounded" title="View">
+                      <Eye className="w-4 h-4" />
+                    </button>
+                    <button className="p-1.5 hover:bg-yellow-50 text-yellow-600 rounded" title="Edit">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button className="p-1.5 hover:bg-red-50 text-red-600 rounded" title="Delete">
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </td>
                 </tr>
@@ -165,7 +185,7 @@ export default function StudentsPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
                   <input
                     type="text"
                     required
@@ -175,7 +195,7 @@ export default function StudentsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
                   <input
                     type="text"
                     required
@@ -185,44 +205,73 @@ export default function StudentsPage() {
                   />
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-                <select
-                  value={formData.gender}
-                  onChange={e => setFormData({...formData, gender: e.target.value as 'MALE' | 'FEMALE' | 'OTHER'})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                >
-                  <option value="MALE">Male</option>
-                  <option value="FEMALE">Female</option>
-                  <option value="OTHER">Other</option>
-                </select>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender *</label>
+                  <select
+                    required
+                    value={formData.gender}
+                    onChange={e => setFormData({...formData, gender: e.target.value as 'MALE' | 'FEMALE' | 'OTHER'})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
+                    <option value="MALE">Male</option>
+                    <option value="FEMALE">Female</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+                  <select
+                    value={formData.classId}
+                    onChange={e => setFormData({...formData, classId: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
+                    <option value="">Select Class</option>
+                    {classes.map((cls: any) => (
+                      <option key={cls.id} value={cls.id}>{cls.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
-                <input
-                  type="date"
-                  value={formData.dateOfBirth}
-                  onChange={e => setFormData({...formData, dateOfBirth: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Parent First Name</label>
+                  <input
+                    type="text"
+                    value={formData.parentFirstName}
+                    onChange={e => setFormData({...formData, parentFirstName: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Parent Last Name</label>
+                  <input
+                    type="text"
+                    value={formData.parentLastName}
+                    onChange={e => setFormData({...formData, parentLastName: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={e => setFormData({...formData, phone: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                <input
-                  type="text"
-                  value={formData.address}
-                  onChange={e => setFormData({...formData, address: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                  <input
+                    type="text"
+                    value={formData.address}
+                    onChange={e => setFormData({...formData, address: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                  <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={e => setFormData({...formData, phone: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
               </div>
               <div className="flex gap-3 pt-2">
                 <button
