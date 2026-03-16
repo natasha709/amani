@@ -214,17 +214,16 @@ router.put('/:id', authMiddleware, authorize('SCHOOL_OWNER', 'ADMIN'), asyncHand
   res.json({ success: true, data: student });
 }));
 
-// DELETE /api/v1/students/:id - Delete student
+// DELETE /api/v1/students/:id - Delete student permanently
 router.delete('/:id', authMiddleware, authorize('SCHOOL_OWNER', 'ADMIN'), asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   
-  // Soft delete - mark as inactive
-  await prisma.student.update({
+  // Permanently delete the student
+  await prisma.student.delete({
     where: { id },
-    data: { status: 'INACTIVE' },
   });
   
-  res.json({ success: true, message: 'Student deactivated' });
+  res.json({ success: true, message: 'Student deleted permanently' });
 }));
 
 // GET /api/v1/students/:id/fees - Get student fee balance
