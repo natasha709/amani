@@ -136,27 +136,43 @@ router.post('/login', asyncHandler(async (req: Request, res: Response) => {
   });
 }));
 
-// GET /api/v1/auth/me - Get current user
-router.get('/me', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
-  const user = await prisma.user.findUnique({
-    where: { id: req.user?.id },
-    select: {
-      id: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      phone: true,
-      role: true,
-      schoolId: true,
-      profileImage: true,
-      createdAt: true,
-    },
-  });
+// GET /api/v1/auth/me - Get current user (public for debugging)
+router.get('/me', asyncHandler(async (req: Request, res: Response) => {
+  // Get token from header
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    res.status(401).json({ success: false, message: 'No token provided' });
+    return;
+  }
   
-  res.json({
-    success: true,
-    data: user,
-  });
+  const token = authHeader.substring(7);
+  const jwtSecret = process.env.JWT_SECRET || 'amani-secret-key-change-in-production';
+  
+  try {
+    const decoded = jwt.verify(token, jwtSecret) as { id: string };
+    
+    const freshUser = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        role: true,
+        schoolId: true,
+        profileImage: true,
+        createdAt: true,
+      },
+    });
+    
+    res.json({
+      success: true,
+      data: freshUser,
+    });
+  } catch (e) {
+    res.status(401).json({ success: false, message: 'Invalid token' });
+  }
 }));
 
 // POST /api/v1/auth/logout
