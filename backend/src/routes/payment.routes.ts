@@ -28,20 +28,20 @@ const createPaymentSchema = z.object({
 router.post('/', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
   const data = createPaymentSchema.parse(req.body);
   const schoolId = req.user?.schoolId;
-  
+
   if (!schoolId) {
     res.status(400).json({ success: false, message: 'School not found' });
     return;
   }
-  
+
   // Calculate transaction fee (2% as per business plan)
   const transactionFee = data.amount * 0.02;
   const totalAmount = data.amount + transactionFee;
-  
+
   // Generate receipt number
   const count = await prisma.payment.count({ where: { schoolId } });
   const receiptNo = `RCP-${new Date().getFullYear()}-${String(count + 1).padStart(6, '0')}`;
-  
+
   // Create payment in transaction
   const payment = await prisma.$transaction(async (tx) => {
     // Create payment record
@@ -69,7 +69,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: AuthRequest, res: Resp
         },
       },
     });
-    
+
     // Update fee balance if fee structure specified
     if (data.feeStructureId) {
       const feeBalance = await tx.feeBalance.findUnique({
@@ -80,11 +80,11 @@ router.post('/', authMiddleware, asyncHandler(async (req: AuthRequest, res: Resp
           },
         },
       });
-      
+
       if (feeBalance) {
         const newPaidAmount = feeBalance.paidAmount + data.amount;
         const newBalance = Math.max(0, feeBalance.amount - newPaidAmount);
-        
+
         await tx.feeBalance.update({
           where: { id: feeBalance.id },
           data: {
@@ -92,17 +92,17 @@ router.post('/', authMiddleware, asyncHandler(async (req: AuthRequest, res: Resp
             balance: newBalance,
           },
         });
-        
+
         await tx.payment.update({
           where: { id: newPayment.id },
           data: { feeBalanceId: feeBalance.id },
         });
       }
     }
-    
+
     return newPayment;
   });
-  
+
   res.status(201).json({
     success: true,
     data: payment,
@@ -113,14 +113,14 @@ router.post('/', authMiddleware, asyncHandler(async (req: AuthRequest, res: Resp
 router.get('/', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
   const schoolId = req.user?.schoolId;
   const { studentId, status, startDate, endDate, page = '1', limit = '20' } = req.query;
-  
+
   if (!schoolId) {
     res.status(400).json({ success: false, message: 'School not found' });
     return;
   }
-  
+
   const where: any = { schoolId };
-  
+
   if (studentId) where.studentId = studentId as string;
   if (status) where.status = status;
   if (startDate || endDate) {
@@ -128,9 +128,9 @@ router.get('/', authMiddleware, asyncHandler(async (req: AuthRequest, res: Respo
     if (startDate) where.paymentDate.gte = new Date(startDate as string);
     if (endDate) where.paymentDate.lte = new Date(endDate as string);
   }
-  
+
   const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
-  
+
   const [payments, total] = await Promise.all([
     prisma.payment.findMany({
       where,
@@ -138,6 +138,8 @@ router.get('/', authMiddleware, asyncHandler(async (req: AuthRequest, res: Respo
         student: {
           select: { firstName: true, lastName: true, studentNo: true, class: true },
         },
+        feeBalance: true,
+        feeStructure: true,
       },
       skip,
       take: parseInt(limit as string),
@@ -145,13 +147,13 @@ router.get('/', authMiddleware, asyncHandler(async (req: AuthRequest, res: Respo
     }),
     prisma.payment.count({ where }),
   ]);
-  
+
   const summary = await prisma.payment.aggregate({
     where: { ...where, status: 'COMPLETED' },
     _sum: { amount: true, transactionFee: true },
     _count: true,
   });
-  
+
   res.json({
     success: true,
     data: payments,
@@ -172,7 +174,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: AuthRequest, res: Respo
 // GET /api/v1/payments/:id - Get payment details
 router.get('/:id', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
-  
+
   const payment = await prisma.payment.findUnique({
     where: { id },
     include: {
@@ -182,24 +184,24 @@ router.get('/:id', authMiddleware, asyncHandler(async (req: AuthRequest, res: Re
       feeStructure: true,
     },
   });
-  
+
   if (!payment) {
     res.status(404).json({ success: false, message: 'Payment not found' });
     return;
   }
-  
+
   res.json({ success: true, data: payment });
 }));
 
 // POST /api/v1/payments/:id/refund - Refund payment
 router.post('/:id/refund', authMiddleware, authorize('SCHOOL_OWNER', 'ADMIN'), asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
-  
+
   const payment = await prisma.payment.update({
     where: { id },
     data: { status: 'REFUNDED' },
   });
-  
+
   res.json({ success: true, data: payment });
 }));
 
