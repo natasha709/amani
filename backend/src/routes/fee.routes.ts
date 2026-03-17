@@ -16,6 +16,7 @@ const createFeeStructureSchema = z.object({
   academicTermId: z.string().uuid().optional(),
   isOptional: z.boolean().optional(),
   isRecurring: z.boolean().optional(),
+  targetSection: z.enum(['BOARDING', 'DAY']).optional(),
 });
 
 // POST /api/v1/fees - Create fee structure
@@ -34,6 +35,7 @@ router.post('/', authMiddleware, authorize('SCHOOL_OWNER', 'ADMIN'), asyncHandle
       schoolId,
       dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
       academicTermId: data.academicTermId,
+      targetSection: data.targetSection,
     },
   });
   
@@ -96,6 +98,11 @@ router.post('/:id/assign', authMiddleware, authorize('SCHOOL_OWNER', 'ADMIN'), a
     students = await prisma.student.findMany({
       where: { schoolId, status: 'ACTIVE' },
     });
+  }
+  
+  // Filter students based on section if targetSection is specified
+  if (feeStructure.targetSection) {
+    students = students.filter(s => s.section === feeStructure.targetSection);
   }
   
   // Create fee balances

@@ -19,6 +19,7 @@ function EditStudentForm({ student, classes, onSubmit, onCancel, isLoading }: {
     classId: student.classId || '',
     phone: student.phone || '',
     address: student.address || '',
+    section: student.section || 'DAY',
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -101,7 +102,19 @@ function EditStudentForm({ student, classes, onSubmit, onCancel, isLoading }: {
           />
         </div>
       </div>
-      <div className="flex gap-3 pt-2">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Section *</label>
+        <select
+          required
+          value={formData.section}
+          onChange={e => setFormData({ ...formData, section: e.target.value })}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+        >
+          <option value="DAY">Day Scholar</option>
+          <option value="BOARDING">Boarding</option>
+        </select>
+      </div>
+      <div className="flex gap-3 pt-4">
         <button
           type="button"
           onClick={onCancel}
@@ -130,6 +143,7 @@ export default function StudentsPage() {
     gender: '',
     classId: '',
     status: '',
+    section: '',
   });
   const [viewStudent, setViewStudent] = useState<any>(null);
   const [editStudent, setEditStudent] = useState<any>(null);
@@ -144,6 +158,7 @@ export default function StudentsPage() {
     phone: '',
     countryCode: '+256',
     address: '',
+    section: 'DAY' as 'DAY' | 'BOARDING',
   });
 
   const queryClient = useQueryClient();
@@ -166,7 +181,18 @@ export default function StudentsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
       setShowModal(false);
-      setFormData({ firstName: '', lastName: '', gender: 'MALE', classId: '', parentFirstName: '', parentLastName: '', phone: '', countryCode: '+256', address: '' });
+      setFormData({ 
+        firstName: '', 
+        lastName: '', 
+        gender: 'MALE', 
+        classId: '', 
+        parentFirstName: '', 
+        parentLastName: '', 
+        phone: '', 
+        countryCode: '+256', 
+        address: '', 
+        section: 'DAY' 
+      });
     },
   });
 
@@ -253,7 +279,7 @@ export default function StudentsPage() {
       {showFilters && (
         <div className="card p-4">
           <h3 className="font-medium text-gray-900 mb-3">Filter Students</h3>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
               <select
@@ -292,10 +318,22 @@ export default function StudentsPage() {
                 <option value="INACTIVE">Inactive</option>
               </select>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
+              <select
+                value={filters.section}
+                onChange={(e) => setFilters({...filters, section: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value="">All</option>
+                <option value="DAY">Day Scholar</option>
+                <option value="BOARDING">Boarding</option>
+              </select>
+            </div>
           </div>
           <div className="mt-3 flex justify-end">
             <button
-              onClick={() => setFilters({ gender: '', classId: '', status: '' })}
+              onClick={() => setFilters({ gender: '', classId: '', status: '', section: '' })}
               className="text-sm text-gray-600 hover:text-gray-900"
             >
               Clear Filters
@@ -317,6 +355,7 @@ export default function StudentsPage() {
                 <th>Gender</th>
                 <th>Class</th>
                 <th>Parent</th>
+                <th>Section</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -336,6 +375,12 @@ export default function StudentsPage() {
                     ) : (
                       '-'
                     )}
+                  </td>
+                  <td>
+                    <span className={`badge ${student.section === 'BOARDING' ? 'badge-primary' : 'badge-outline'
+                      }`}>
+                      {student.section === 'BOARDING' ? 'Boarding' : 'Day'}
+                    </span>
                   </td>
                   <td>
                     <span className={`badge ${student.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'
@@ -492,6 +537,19 @@ export default function StudentsPage() {
                     />
                   </div>
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Section *</label>
+                    <select
+                      required
+                      value={formData.section}
+                      onChange={e => setFormData({ ...formData, section: e.target.value as 'DAY' | 'BOARDING' })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value="DAY">Day Scholar</option>
+                      <option value="BOARDING">Boarding</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
                     <div className="flex w-full">
                       <select
@@ -516,7 +574,6 @@ export default function StudentsPage() {
                     </div>
                     <p className="text-xs text-gray-500 mt-1">Enter 9 digits (e.g., 772123456)</p>
                   </div>
-                </div>
               </div>
               <div className="flex gap-3 p-6 border-t border-gray-100 bg-gray-50 rounded-b-xl shrink-0">
                 <button

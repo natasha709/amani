@@ -13,6 +13,7 @@ export default function FeesPage() {
     dueDate: '',
     academicTermId: '',
     targetClassId: '',
+    targetSection: '',
     isOptional: false,
     isRecurring: true,
   });
@@ -65,6 +66,7 @@ export default function FeesPage() {
         dueDate: '',
         academicTermId: '',
         targetClassId: '',
+        targetSection: '',
         isOptional: false,
         isRecurring: true,
       });
@@ -77,6 +79,7 @@ export default function FeesPage() {
       ...formData,
       amount: parseFloat(formData.amount),
       dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : undefined,
+      targetSection: formData.targetSection === '' ? undefined : formData.targetSection,
     });
   };
 
@@ -269,6 +272,20 @@ export default function FeesPage() {
                       ))}
                     </select>
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Target Section (Optional)</label>
+                  <select
+                    value={formData.targetSection}
+                    onChange={e => setFormData({ ...formData, targetSection: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
+                    <option value="">Apply to All Sections</option>
+                    <option value="DAY">Day Scholar Only</option>
+                    <option value="BOARDING">Boarding Only</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">If selected, this fee will only be applied to students in the specified section.</p>
                 </div>
 
                 <div className="flex items-center gap-3 pt-2">

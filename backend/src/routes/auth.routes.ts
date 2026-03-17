@@ -74,7 +74,7 @@ router.post('/register', asyncHandler(async (req: Request, res: Response) => {
   
   // Send onboarding email if it's a staff/admin being created
   if (data.role && ['ADMIN', 'TEACHER', 'STAFF'].includes(data.role)) {
-    // Note: data.password is the raw password here before hashing
+  // Note: data.password is the raw password here before hashing
     const u = user as any;
     await sendOnboardingEmail(u.email, u.firstName, data.password);
   }
@@ -149,7 +149,7 @@ router.post('/login', asyncHandler(async (req: Request, res: Response) => {
 
 // GET /api/v1/auth/me - Get current user (public for debugging)
 router.get('/me', asyncHandler(async (req: Request, res: Response) => {
-  // Get token from header
+// Get token from header
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     res.status(401).json({ success: false, message: 'No token provided' });

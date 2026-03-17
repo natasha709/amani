@@ -25,6 +25,7 @@ const createStudentSchema = z.object({
   parentId: z.string().optional(),
   parentFirstName: z.string().optional(),
   parentLastName: z.string().optional(),
+  section: z.enum(['BOARDING', 'DAY']).optional(),
 });
 
 const updateStudentSchema = createStudentSchema.partial();
@@ -92,6 +93,7 @@ router.post('/', authMiddleware, authorize('SCHOOL_OWNER', 'ADMIN', 'TEACHER'), 
       streamId: data.streamId || null,
       parentId: parentId || null,
       studentNo,
+      section: data.section || 'DAY',
       schoolId,
       createdById: req.user?.id,
     },
@@ -112,7 +114,7 @@ router.post('/', authMiddleware, authorize('SCHOOL_OWNER', 'ADMIN', 'TEACHER'), 
 // GET /api/v1/students - List students
 router.get('/', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
   const schoolId = req.user?.schoolId;
-  const { classId, status, search, gender, page = '1', limit = '20' } = req.query;
+  const { classId, status, search, gender, section, page = '1', limit = '20' } = req.query;
   
   // If no schoolId, return empty array for demo purposes
   if (!schoolId) {
@@ -125,6 +127,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: AuthRequest, res: Respo
   if (classId) where.classId = classId as string;
   if (status) where.status = status;
   if (gender) where.gender = gender;
+  if (section) where.section = section;
   if (search) {
     where.OR = [
       { firstName: { contains: search as string, mode: 'insensitive' } },

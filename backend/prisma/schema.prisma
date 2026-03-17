@@ -145,6 +145,7 @@ model Student {
   stream          Stream?   @relation(fields: [streamId], references: [id])
   admissionDate   DateTime  @default(now())
   status          StudentStatus @default(ACTIVE)
+  section         StudentSection @default(DAY)
   
   // Parent/Guardian
   parentId        String?
@@ -179,8 +180,13 @@ enum StudentStatus {
   INACTIVE
   GRADUATED
   TRANSFERRED
-  SUSPENDED
   EXPILED
+  SUSPENDED
+}
+
+enum StudentSection {
+  BOARDING
+  DAY
 }
 
 // ============================================
@@ -386,6 +392,7 @@ model FeeStructure {
   
   isOptional      Boolean   @default(false)
   isRecurring     Boolean   @default(true)
+  targetSection   StudentSection?
   
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
