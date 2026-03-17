@@ -125,6 +125,12 @@ export default function StudentsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    gender: '',
+    classId: '',
+    status: '',
+  });
   const [viewStudent, setViewStudent] = useState<any>(null);
   const [editStudent, setEditStudent] = useState<any>(null);
   const [deleteStudent, setDeleteStudent] = useState<any>(null);
@@ -151,8 +157,8 @@ export default function StudentsPage() {
   const classes = classesData?.data?.data || [];
 
   const { data, isLoading } = useQuery({
-    queryKey: ['students', { search, page }],
-    queryFn: () => studentApi.getAll({ search, page }),
+    queryKey: ['students', { search, page, ...filters }],
+    queryFn: () => studentApi.getAll({ search, page, ...filters }),
   });
 
   const createMutation = useMutation({
@@ -233,12 +239,70 @@ export default function StudentsPage() {
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg"
             />
           </div>
-          <button className="btn btn-outline">
+          <button 
+            onClick={() => setShowFilters(!showFilters)}
+            className={`btn btn-outline ${showFilters ? 'btn-primary' : ''}`}
+          >
             <Filter className="w-5 h-5 mr-2" />
             Filters
           </button>
         </div>
       </div>
+
+      {/* Filter Panel */}
+      {showFilters && (
+        <div className="card p-4">
+          <h3 className="font-medium text-gray-900 mb-3">Filter Students</h3>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+              <select
+                value={filters.gender}
+                onChange={(e) => setFilters({...filters, gender: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value="">All</option>
+                <option value="MALE">Male</option>
+                <option value="FEMALE">Female</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+              <select
+                value={filters.classId}
+                onChange={(e) => setFilters({...filters, classId: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value="">All Classes</option>
+                {classes.map((cls: any) => (
+                  <option key={cls.id} value={cls.id}>{cls.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select
+                value={filters.status}
+                onChange={(e) => setFilters({...filters, status: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value="">All</option>
+                <option value="ACTIVE">Active</option>
+                <option value="INACTIVE">Inactive</option>
+              </select>
+            </div>
+          </div>
+          <div className="mt-3 flex justify-end">
+            <button
+              onClick={() => setFilters({ gender: '', classId: '', status: '' })}
+              className="text-sm text-gray-600 hover:text-gray-900"
+            >
+              Clear Filters
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Students table */}
       <div className="card overflow-hidden">
@@ -250,6 +314,7 @@ export default function StudentsPage() {
               <tr>
                 <th>Student No.</th>
                 <th>Name</th>
+                <th>Gender</th>
                 <th>Class</th>
                 <th>Parent</th>
                 <th>Status</th>
@@ -263,6 +328,7 @@ export default function StudentsPage() {
                   <td>
                     {student.firstName} {student.lastName}
                   </td>
+                  <td>{student.gender}</td>
                   <td>{student.class?.name || 'Not assigned'}</td>
                   <td>
                     {student.parent ? (
