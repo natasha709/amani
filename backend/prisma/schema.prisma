@@ -93,6 +93,7 @@ model User {
   // Status
   isActive        Boolean   @default(true)
   emailVerified   Boolean   @default(false)
+  requiresPasswordChange Boolean @default(false)
   
   // Timestamps
   createdAt       DateTime  @default(now())

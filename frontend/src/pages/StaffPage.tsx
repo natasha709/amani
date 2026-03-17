@@ -73,8 +73,14 @@ export default function StaffPage() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const data = Object.fromEntries(fd);
+    
+    // Generate an automatic random password (mix of letters and numbers)
+    const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const autoPassword = Array.from({ length: 10 }, () => charset[Math.floor(Math.random() * charset.length)]).join('');
+
     createMutation.mutate({
       ...data,
+      password: autoPassword,
       schoolId: data.schoolId || user?.schoolId,
     });
   };
@@ -189,7 +195,7 @@ export default function StaffPage() {
                       <div className="flex items-center gap-2 text-gray-500 font-medium">
                         <Building2 className="w-4 h-4 text-gray-300" />
                         <span className="font-bold text-[11px] uppercase tracking-wider text-gray-600">
-                          {schools.find((s: any) => s.id === member.schoolId)?.name || 'Unknown School'}
+                          {member.schoolName || 'Unknown School'}
                         </span>
                       </div>
                     </td>
@@ -262,7 +268,7 @@ export default function StaffPage() {
               </div>
               <div>
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest italic">Assigned School</label>
-                <p className="font-bold text-gray-950">{schools.find((s: any) => s.id === viewStaff.schoolId)?.name || 'N/A'}</p>
+                <p className="font-bold text-gray-950">{viewStaff.schoolName || 'N/A'}</p>
               </div>
             </div>
 
@@ -398,18 +404,12 @@ export default function StaffPage() {
                   </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 italic">System Role</label>
-                    <select name="role" required className="w-full px-5 py-4 bg-gray-50 border-none rounded-[1.25rem] font-bold text-gray-950 focus:ring-4 focus:ring-indigo-100 transition-all outline-none">
-                      <option value="TEACHER">Teacher</option>
-                      <option value="ADMIN">Administrative Staff</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 italic">Initial Password</label>
-                    <input name="password" type="password" required className="w-full px-5 py-4 bg-gray-50 border-none rounded-[1.25rem] font-bold text-gray-950 focus:ring-4 focus:ring-indigo-100 transition-all outline-none" placeholder="••••••••" minLength={6} />
-                  </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 italic">System Role</label>
+                  <select name="role" required className="w-full px-5 py-4 bg-gray-50 border-none rounded-[1.25rem] font-bold text-gray-950 focus:ring-4 focus:ring-indigo-100 transition-all outline-none">
+                    <option value="TEACHER">Teacher</option>
+                    <option value="ADMIN">Administrative Staff</option>
+                  </select>
                 </div>
 
                 <div>

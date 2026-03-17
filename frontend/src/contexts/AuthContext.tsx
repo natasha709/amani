@@ -10,13 +10,14 @@ interface User {
   lastName: string;
   role: string;
   schoolId?: string;
+  requiresPasswordChange?: boolean;
 }
 
 interface AuthState {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   logout: () => void;
   setUser: (user: User | null) => void;
   checkAuth: () => Promise<void>;
@@ -39,6 +40,7 @@ export const useAuth = create<AuthState>()(
           api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
           
           set({ user, token, isLoading: false });
+          return user;
         } catch (error) {
           set({ isLoading: false });
           throw error;
@@ -82,8 +84,9 @@ export const useAuth = create<AuthState>()(
 const AuthContext = createContext<{
   user: User | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   logout: () => void;
+  checkAuth: () => Promise<void>;
 } | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -94,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
   
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, checkAuth }}>
       {children}
     </AuthContext.Provider>
   );

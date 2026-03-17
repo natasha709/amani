@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
@@ -12,10 +12,12 @@ import CommunicationsPage from './pages/CommunicationsPage';
 import SettingsPage from './pages/SettingsPage';
 import StaffPage from './pages/StaffPage';
 import SchoolsPage from './pages/SchoolsPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -27,6 +29,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (user.requiresPasswordChange && location.pathname !== '/reset-password') {
+    return <Navigate to="/reset-password" replace />;
   }
 
   return <>{children}</>;
@@ -49,6 +55,11 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/reset-password" element={
+        <ProtectedRoute>
+          <ResetPasswordPage />
+        </ProtectedRoute>
+      } />
 
       <Route path="/" element={
         <ProtectedRoute>

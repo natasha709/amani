@@ -83,6 +83,7 @@ router.get('/:id', authMiddleware, asyncHandler(async (req: AuthRequest, res: Re
           firstName: true,
           lastName: true,
           role: true,
+          schoolId: true,
         },
       },
       _count: {

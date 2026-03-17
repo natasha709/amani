@@ -45,6 +45,8 @@ export const authApi = {
     api.get('/auth/me'),
   updateProfile: (data: any) =>
     api.put('/auth/profile', data),
+  changePassword: (data: { newPassword: string }) =>
+    api.post('/auth/change-password', data),
 };
 
 export const schoolApi = {
@@ -112,13 +114,20 @@ export const communicationApi = {
 };
 
 export const staffApi = {
-  getAll: (schoolId: string) => api.get(`/schools/${schoolId}`).then(res => ({
-    ...res,
-    data: {
-      ...res.data,
-      data: res.data.data.users
-    }
-  })),
+  getAll: (schoolId: string) => api.get(`/schools/${schoolId}`).then(res => {
+    const school = res.data.data;
+    const users = school.users.map((u: any) => ({
+      ...u,
+      schoolName: school.name
+    }));
+    return {
+      ...res,
+      data: {
+        ...res.data,
+        data: users
+      }
+    };
+  }),
   create: (data: any) => api.post('/auth/register', data),
   update: (id: string, data: any) => api.put(`/auth/users/${id}`, data),
   delete: (id: string) => api.delete(`/auth/users/${id}`),

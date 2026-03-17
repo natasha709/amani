@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { prisma } from '../config/database';
 import { authMiddleware, authorize, AuthRequest } from '../middleware/auth.middleware';
 import { asyncHandler } from '../middleware/error.middleware';
+import { sendOnboardingEmail } from '../utils/email';
 
 const router = Router();
 
@@ -57,7 +58,8 @@ router.post('/register', asyncHandler(async (req: Request, res: Response) => {
       phone: data.phone,
       role: data.role || 'SCHOOL_OWNER',
       schoolId: data.schoolId,
-    },
+      requiresPasswordChange: data.role && ['ADMIN', 'TEACHER', 'STAFF'].includes(data.role),
+    } as any,
     select: {
       id: true,
       email: true,
@@ -65,9 +67,17 @@ router.post('/register', asyncHandler(async (req: Request, res: Response) => {
       lastName: true,
       role: true,
       schoolId: true,
+      requiresPasswordChange: true,
       createdAt: true,
-    },
+    } as any,
   });
+  
+  // Send onboarding email if it's a staff/admin being created
+  if (data.role && ['ADMIN', 'TEACHER', 'STAFF'].includes(data.role)) {
+    // Note: data.password is the raw password here before hashing
+    const u = user as any;
+    await sendOnboardingEmail(u.email, u.firstName, data.password);
+  }
   
   // Generate token
   const token = jwt.sign(
@@ -130,6 +140,7 @@ router.post('/login', asyncHandler(async (req: Request, res: Response) => {
         lastName: user.lastName,
         role: user.role,
         schoolId: user.schoolId,
+        requiresPasswordChange: (user as any).requiresPasswordChange,
       },
       token,
     },
@@ -162,8 +173,9 @@ router.get('/me', asyncHandler(async (req: Request, res: Response) => {
         role: true,
         schoolId: true,
         profileImage: true,
+        requiresPasswordChange: true,
         createdAt: true,
-      },
+      } as any,
     });
     
     res.json({
@@ -233,6 +245,35 @@ router.delete('/users/:id', authMiddleware, authorize('ADMIN', 'SCHOOL_OWNER', '
   res.json({
     success: true,
     message: 'User deactivated successfully',
+  });
+}));
+
+// POST /api/v1/auth/change-password - Change password (for first login/reset)
+router.post('/change-password', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { newPassword } = req.body;
+  const userId = req.user?.id;
+
+  if (!newPassword || newPassword.length < 6) {
+    res.status(400).json({
+      success: false,
+      message: 'Password must be at least 6 characters long',
+    });
+    return;
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      password: hashedPassword,
+      requiresPasswordChange: false,
+    } as any,
+  });
+
+  res.json({
+    success: true,
+    message: 'Password updated successfully',
   });
 }));
 

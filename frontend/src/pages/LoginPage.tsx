@@ -18,9 +18,19 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      await login(email, password);
-      navigate('/dashboard');
+      console.log('[Login] Attempting login for:', email);
+      const user = await login(email, password);
+      console.log('[Login] Response user:', user);
+      
+      if (user.requiresPasswordChange) {
+        console.log('[Login] Redirecting to reset-password');
+        navigate('/reset-password');
+      } else {
+        console.log('[Login] Redirecting to dashboard');
+        navigate('/dashboard');
+      }
     } catch (err: any) {
+      console.error('[Login] Error:', err);
       setError(err.response?.data?.message || 'Invalid credentials');
     } finally {
       setIsLoading(false);
@@ -83,6 +93,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                autoComplete="email"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 placeholder="you@school.edu.ug"
               />
@@ -99,6 +110,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  autoComplete="current-password"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent pr-12"
                   placeholder="••••••••"
                 />
