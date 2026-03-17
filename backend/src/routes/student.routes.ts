@@ -112,7 +112,7 @@ router.post('/', authMiddleware, authorize('SCHOOL_OWNER', 'ADMIN', 'TEACHER'), 
 // GET /api/v1/students - List students
 router.get('/', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
   const schoolId = req.user?.schoolId;
-  const { classId, status, search, page = '1', limit = '20' } = req.query;
+  const { classId, status, search, gender, page = '1', limit = '20' } = req.query;
   
   // If no schoolId, return empty array for demo purposes
   if (!schoolId) {
@@ -124,6 +124,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: AuthRequest, res: Respo
   
   if (classId) where.classId = classId as string;
   if (status) where.status = status;
+  if (gender) where.gender = gender;
   if (search) {
     where.OR = [
       { firstName: { contains: search as string, mode: 'insensitive' } },
