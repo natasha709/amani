@@ -1,10 +1,10 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../contexts/AuthContext';
-import { 
-  LayoutDashboard, 
-  Users, 
-  CreditCard, 
-  FileText, 
+import {
+  LayoutDashboard,
+  Users,
+  CreditCard,
+  FileText,
   GraduationCap,
   PiggyBank,
   MessageSquare,
@@ -12,13 +12,16 @@ import {
   LogOut,
   Menu,
   X,
-  Bell
+  Bell,
+  Building2
 } from 'lucide-react';
 import { useState } from 'react';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Students', href: '/students', icon: Users },
+  { name: 'Schools', href: '/schools', icon: Building2 },
+  { name: 'Staff', href: '/staff', icon: Users },
+  { name: 'Students', href: '/students', icon: GraduationCap },
   { name: 'Fees', href: '/fees', icon: FileText },
   { name: 'Payments', href: '/payments', icon: CreditCard },
   { name: 'Academics', href: '/academics', icon: GraduationCap },
@@ -41,7 +44,7 @@ export default function Layout() {
     <div className="min-h-screen bg-gray-50">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-40 bg-gray-900/50 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
@@ -62,7 +65,7 @@ export default function Layout() {
             </div>
             <span className="text-xl font-semibold text-gray-900">Amani</span>
           </div>
-          <button 
+          <button
             className="lg:hidden p-2 rounded-md hover:bg-gray-100"
             onClick={() => setSidebarOpen(false)}
           >
@@ -72,24 +75,34 @@ export default function Layout() {
 
         {/* Navigation */}
         <nav className="p-4 space-y-1">
-          {navigation.map((item) => (
-            <NavLink
-              key={item.name}
-              to={item.href}
-              className={({ isActive }) => `
+          {navigation
+            .filter(item => {
+              if (user?.role === 'TEACHER') {
+                return ['Dashboard', 'Students', 'Academics', 'Communications'].includes(item.name);
+              }
+              if (user?.role === 'PARENT') {
+                return ['Dashboard', 'Fees', 'Academics'].includes(item.name);
+              }
+              return true; // Owners/Admins see everything
+            })
+            .map((item) => (
+              <NavLink
+                key={item.name}
+                to={item.href}
+                className={({ isActive }) => `
                 flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
                 transition-colors duration-150
-                ${isActive 
-                  ? 'bg-primary-50 text-primary-700' 
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                }
+                ${isActive
+                    ? 'bg-primary-50 text-primary-700'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  }
               `}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <item.icon className="w-5 h-5" />
-              {item.name}
-            </NavLink>
-          ))}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <item.icon className="w-5 h-5" />
+                {item.name}
+              </NavLink>
+            ))}
         </nav>
 
         {/* User section */}

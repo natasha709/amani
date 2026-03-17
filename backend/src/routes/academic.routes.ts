@@ -38,12 +38,35 @@ router.get('/classes', authMiddleware, asyncHandler(async (req: AuthRequest, res
     where: { schoolId },
     include: {
       stream: true,
+      subjects: { include: { subject: true } },
       _count: { select: { students: true } },
     },
     orderBy: { level: 'asc' },
   });
 
   res.json({ success: true, data: classes });
+}));
+
+// POST /api/v1/academics/class-subjects - Link subject to class
+router.post('/class-subjects', authMiddleware, authorize('SCHOOL_OWNER', 'ADMIN'), asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { classId, subjectId, teacherId } = req.body;
+
+  const classSubject = await prisma.classSubject.upsert({
+    where: {
+      classId_subjectId: { classId, subjectId }
+    },
+    update: { teacherId },
+    create: { classId, subjectId, teacherId }
+  });
+
+  res.status(201).json({ success: true, data: classSubject });
+}));
+
+// DELETE /api/v1/academics/class-subjects/:id - Remove subject from class
+router.delete('/class-subjects/:id', authMiddleware, authorize('SCHOOL_OWNER', 'ADMIN'), asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  await prisma.classSubject.delete({ where: { id } });
+  res.json({ success: true, message: 'Subject removed from class' });
 }));
 
 // POST /api/v1/academics/subjects - Create subject

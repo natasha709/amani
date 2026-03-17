@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { prisma } from '../config/database';
-import { authMiddleware, AuthRequest } from '../middleware/auth.middleware';
+import { authMiddleware, authorize, AuthRequest } from '../middleware/auth.middleware';
 import { asyncHandler } from '../middleware/error.middleware';
 
 const router = Router();
@@ -180,6 +180,59 @@ router.post('/logout', authMiddleware, asyncHandler(async (_req: AuthRequest, re
   res.json({
     success: true,
     message: 'Logged out successfully',
+  });
+}));
+
+// PUT /api/v1/auth/users/:id - Update user (admin only)
+router.put('/users/:id', authMiddleware, authorize('ADMIN', 'SCHOOL_OWNER', 'SUPER_ADMIN'), asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const data = registerSchema.partial().parse(req.body);
+  
+  // If password, hash it
+  if (req.body.password) {
+    req.body.password = await bcrypt.hash(req.body.password, 12);
+  }
+
+  const user = await prisma.user.update({
+    where: { id },
+    data: {
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email: data.email,
+      phone: data.phone,
+      role: data.role,
+      schoolId: data.schoolId,
+      ...(req.body.password ? { password: req.body.password } : {}),
+    },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      role: true,
+      schoolId: true,
+    },
+  });
+  
+  res.json({
+    success: true,
+    data: user,
+  });
+}));
+
+// DELETE /api/v1/auth/users/:id - Deactivate user (admin only)
+router.delete('/users/:id', authMiddleware, authorize('ADMIN', 'SCHOOL_OWNER', 'SUPER_ADMIN'), asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  
+  // Just deactivate instead of delete
+  await prisma.user.update({
+    where: { id },
+    data: { isActive: false },
+  });
+  
+  res.json({
+    success: true,
+    message: 'User deactivated successfully',
   });
 }));
 

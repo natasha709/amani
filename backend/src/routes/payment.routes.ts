@@ -20,7 +20,8 @@ const createPaymentSchema = z.object({
   phoneNumber: z.string().optional(),
   paidByName: z.string().optional(),
   paidByPhone: z.string().optional(),
-  feeStructureId: z.string().uuid().optional(),
+  // Transform empty string to undefined so Prisma ignores it
+  feeStructureId: z.string().uuid().or(z.literal('')).transform(val => val === '' ? undefined : val).optional(),
   notes: z.string().optional(),
 });
 

@@ -1,13 +1,25 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { paymentApi, studentApi, academicApi } from '../lib/api';
-import { Plus, Search, Filter, X, CreditCard, Receipt } from 'lucide-react';
+import { Plus, Search, Filter, X, CreditCard, Printer } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function PaymentsPage() {
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [selectedClassId, setSelectedClassId] = useState('');
+  const [printingPayment, setPrintingPayment] = useState<any>(null);
+  const { user } = useAuth();
 
+  // Print helper
+  const handlePrint = (payment: any) => {
+    setPrintingPayment(payment);
+    // Wait for state to update then print
+    setTimeout(() => {
+      window.print();
+      setPrintingPayment(null);
+    }, 100);
+  };
   // Create payment form state
   const [formData, setFormData] = useState({
     studentId: '',
@@ -81,22 +93,24 @@ export default function PaymentsPage() {
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Page header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between no-print">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Payments</h1>
           <p className="text-gray-500">Record and track fee collections</p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="btn btn-primary"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          Record Payment
-        </button>
+        {(user?.role === 'SCHOOL_OWNER' || user?.role === 'ADMIN') && (
+          <button
+            onClick={() => setShowModal(true)}
+            className="btn btn-primary"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            Record Payment
+          </button>
+        )}
       </div>
 
       {/* Filters */}
-      <div className="card p-4">
+      <div className="card p-4 no-print">
         <div className="flex items-center gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -169,7 +183,9 @@ export default function PaymentsPage() {
                           }`}>
                           {payment.feeBalance ? (
                             payment.feeBalance.balance === 0 ? 'SETTLED' : 'PARTIAL'
-                          ) : payment.status}
+                          ) : (
+                            payment.feeStructureId ? 'PARTIAL' : payment.status
+                          )}
                         </span>
                         {payment.feeBalance && payment.feeBalance.balance > 0 && (
                           <span className="text-xs text-red-600 font-bold whitespace-nowrap">
@@ -183,9 +199,13 @@ export default function PaymentsPage() {
                         )}
                       </div>
                     </td>
-                    <td>
-                      <button className="btn btn-outline btn-sm" title="Download Receipt">
-                        <Receipt className="w-4 h-4" />
+                    <td className="no-print">
+                      <button
+                        onClick={() => handlePrint(payment)}
+                        className="btn btn-outline btn-sm"
+                        title="Print Receipt"
+                      >
+                        <Printer className="w-4 h-4" />
                       </button>
                     </td>
                   </tr>
@@ -201,6 +221,102 @@ export default function PaymentsPage() {
           </table>
         )}
       </div>
+
+      {/* Professional Printable Receipt (Hidden from screen) */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        @media screen {
+          .print-only { display: none; }
+        }
+        @media print {
+          .no-print { display: none !important; }
+          .print-only { display: block !important; }
+          body { background: white !important; }
+          .card { border: none !important; box-shadow: none !important; }
+        }
+      `}} />
+
+      {printingPayment && (
+        <div className="print-only fixed inset-0 bg-white z-[9999] p-8 text-black font-sans">
+          <div className="max-w-2xl mx-auto border-2 border-gray-100 p-8 rounded-xl">
+            <div className="flex justify-between items-start mb-8 pb-4 border-b">
+              <div>
+                <h1 className="text-3xl font-black text-primary-700 tracking-tight">AMANI SCHOOL SYSTEM</h1>
+                <p className="text-sm text-gray-500 uppercase tracking-widest font-bold">Official Payment Receipt</p>
+              </div>
+              <div className="text-right">
+                <p className="font-bold">Receipt #: {printingPayment.receiptNo}</p>
+                <p className="text-sm">Date: {new Date(printingPayment.paymentDate).toLocaleDateString()}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-8 mb-8">
+              <div>
+                <h3 className="text-xs font-bold text-gray-400 uppercase mb-2">Student Information</h3>
+                <p className="font-bold text-lg">{printingPayment.student?.firstName} {printingPayment.student?.lastName}</p>
+                <p className="text-sm text-gray-600">ID: {printingPayment.student?.studentNo}</p>
+                <p className="text-sm text-gray-600">Class: {printingPayment.student?.class?.name || 'N/A'}</p>
+              </div>
+              <div className="text-right">
+                <h3 className="text-xs font-bold text-gray-400 uppercase mb-2">Payment Details</h3>
+                <p className="text-sm">Method: <span className="font-medium">{printingPayment.paymentMethod}</span></p>
+                {printingPayment.transactionRef && <p className="text-sm text-gray-600">Ref: {printingPayment.transactionRef}</p>}
+                <p className="text-sm text-gray-600 italic">Received by: Administrator</p>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 p-6 rounded-xl mb-8 border border-gray-100">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-gray-600">Purpose:</span>
+                <span className="font-bold">{printingPayment.feeStructure?.name || 'General School Fees'}</span>
+              </div>
+              <div className="flex justify-between items-center text-xl pt-4 border-t border-gray-200 mt-2">
+                <span className="font-bold">TOTAL PAID:</span>
+                <span className="font-black text-primary-700 underline decoration-double">UGX {printingPayment.amount.toLocaleString()}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mb-10 pb-4 border-b">
+              {(printingPayment.feeBalance || printingPayment.feeStructure) && (
+                <div className={`${(printingPayment.feeBalance?.balance > 0 || (!printingPayment.feeBalance && (printingPayment.feeStructure?.amount - printingPayment.amount) > 0)) ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100'} p-4 rounded-lg border`}>
+                  <p className={`text-xs font-bold ${(printingPayment.feeBalance?.balance > 0 || (!printingPayment.feeBalance && (printingPayment.feeStructure?.amount - printingPayment.amount) > 0)) ? 'text-red-600' : 'text-green-600'} uppercase underline`}>
+                    Remaining Balance (Debt)
+                  </p>
+                  <p className={`text-xl font-black ${(printingPayment.feeBalance?.balance > 0 || (!printingPayment.feeBalance && (printingPayment.feeStructure?.amount - printingPayment.amount) > 0)) ? 'text-red-700' : 'text-green-700'}`}>
+                    {printingPayment.feeBalance ? (
+                      printingPayment.feeBalance.balance === 0 ? 'BALANCE SETTLED' : `UGX ${printingPayment.feeBalance.balance.toLocaleString()}`
+                    ) : (
+                      printingPayment.feeStructure ? (
+                        (printingPayment.feeStructure.amount - printingPayment.amount) <= 0
+                          ? 'BALANCE SETTLED'
+                          : `UGX ${(printingPayment.feeStructure.amount - printingPayment.amount).toLocaleString()}`
+                      ) : 'ACCOUNT SETTLED'
+                    )}
+                  </p>
+                </div>
+              )}
+              <div className="flex items-end justify-end">
+                <div className="text-center">
+                  {/* Signature Area */}
+                  <div className="w-48 h-20 mb-1 flex items-end justify-start">
+                    <img 
+                      src="/signature.png" 
+                      alt="Authorized Signature" 
+                      className="max-h-full object-contain mix-blend-multiply"
+                    />
+                  </div>
+                  <p className="text-xs font-bold uppercase mt-1">Authorized Signature</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-center text-xs text-gray-400 italic">
+              Thank you for your payment. This is a computer-generated receipt and does not require a physical signature unless stamped.
+              <br />Generated via Amani School OS (Operating System for Private Schools)
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Record Payment Modal */}
       {showModal && (

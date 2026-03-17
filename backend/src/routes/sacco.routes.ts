@@ -12,49 +12,83 @@ const router = Router();
 router.post('/members', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
   const { userId, memberType } = req.body;
   const schoolId = req.user?.schoolId;
-  
+
   if (!schoolId) {
     res.status(400).json({ success: false, message: 'School not found' });
     return;
   }
-  
+
   const count = await prisma.saccoMember.count({ where: { schoolId } });
   const memberNo = `SAC-${String(count + 1).padStart(5, '0')}`;
-  
+
   const member = await prisma.saccoMember.create({
     data: { memberNo, userId, schoolId, memberType: memberType || 'TEACHER' },
     include: { user: { select: { firstName: true, lastName: true, email: true } } },
   });
-  
+
   res.status(201).json({ success: true, data: member });
+}));
+
+// GET /api/v1/sacco/eligible-staff - List staff not yet in sacco
+router.get('/eligible-staff', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const schoolId = req.user?.schoolId;
+  if (!schoolId) {
+    res.status(400).json({ success: false, message: 'School not found' });
+    return;
+  }
+
+  // Find all users who are staff but NOT in SaccoMember table
+  const members = await prisma.saccoMember.findMany({
+    where: { schoolId },
+    select: { userId: true },
+  });
+  const memberUserIds = members.map(m => m.userId);
+
+  const eligibleStaff = await prisma.user.findMany({
+    where: {
+      schoolId,
+      role: { in: ['TEACHER', 'ADMIN', 'SCHOOL_OWNER'] },
+      id: { notIn: memberUserIds },
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      role: true,
+    },
+    orderBy: { firstName: 'asc' },
+  });
+
+  res.json({ success: true, data: eligibleStaff });
 }));
 
 // GET /api/v1/sacco/members - List sacco members
 router.get('/members', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
   const schoolId = req.user?.schoolId;
   const { status, memberType } = req.query;
-  
+
   if (!schoolId) {
     res.status(400).json({ success: false, message: 'School not found' });
     return;
   }
-  
+
   const where: any = { schoolId };
   if (status) where.status = status;
   if (memberType) where.memberType = memberType;
-  
+
   const members = await prisma.saccoMember.findMany({
     where,
     include: { user: { select: { firstName: true, lastName: true, email: true, phone: true } } },
     orderBy: { joinedAt: 'desc' },
   });
-  
+
   const summary = await prisma.saccoMember.aggregate({
     where: { schoolId, status: 'ACTIVE' },
     _sum: { totalSavings: true, totalLoans: true, outstandingLoan: true },
     _count: true,
   });
-  
+
   res.json({
     success: true,
     data: members,
@@ -70,7 +104,7 @@ router.get('/members', authMiddleware, asyncHandler(async (req: AuthRequest, res
 // GET /api/v1/sacco/members/:id - Get member details
 router.get('/members/:id', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
-  
+
   const member = await prisma.saccoMember.findUnique({
     where: { id },
     include: {
@@ -79,12 +113,12 @@ router.get('/members/:id', authMiddleware, asyncHandler(async (req: AuthRequest,
       loanApplications: { orderBy: { appliedAt: 'desc' } },
     },
   });
-  
+
   if (!member) {
     res.status(404).json({ success: false, message: 'Member not found' });
     return;
   }
-  
+
   res.json({ success: true, data: member });
 }));
 
@@ -92,18 +126,18 @@ router.get('/members/:id', authMiddleware, asyncHandler(async (req: AuthRequest,
 router.post('/transactions', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
   const { memberId, type, amount, description, reference } = req.body;
   const schoolId = req.user?.schoolId;
-  
+
   if (!schoolId) {
     res.status(400).json({ success: false, message: 'School not found' });
     return;
   }
-  
+
   const member = await prisma.saccoMember.findUnique({ where: { id: memberId } });
   if (!member) {
     res.status(404).json({ success: false, message: 'Member not found' });
     return;
   }
-  
+
   // Calculate balance after
   let balanceAfter = member.totalSavings;
   if (type === 'DEPOSIT') {
@@ -115,23 +149,23 @@ router.post('/transactions', authMiddleware, asyncHandler(async (req: AuthReques
     }
     balanceAfter -= amount;
   }
-  
+
   const count = await prisma.saccoTransaction.count({ where: { schoolId } });
   const transactionNo = `TXN-${new Date().getFullYear()}-${String(count + 1).padStart(6, '0')}`;
-  
+
   const transaction = await prisma.$transaction(async (tx) => {
     const txRecord = await tx.saccoTransaction.create({
       data: { transactionNo, type, amount, balanceAfter, description, reference, memberId, schoolId },
     });
-    
+
     await tx.saccoMember.update({
       where: { id: memberId },
       data: { totalSavings: balanceAfter },
     });
-    
+
     return txRecord;
   });
-  
+
   res.status(201).json({ success: true, data: transaction });
 }));
 
@@ -139,63 +173,89 @@ router.post('/transactions', authMiddleware, asyncHandler(async (req: AuthReques
 router.post('/loans', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
   const { memberId, amount, purpose, durationMonths } = req.body;
   const schoolId = req.user?.schoolId;
-  
+
   if (!schoolId) {
     res.status(400).json({ success: false, message: 'School not found' });
     return;
   }
-  
+
   const member = await prisma.saccoMember.findUnique({ where: { id: memberId } });
   if (!member || member.status !== 'ACTIVE') {
     res.status(400).json({ success: false, message: 'Invalid member' });
     return;
   }
-  
+
   // Check if member has outstanding loans
   if (member.outstandingLoan > 0) {
     res.status(400).json({ success: false, message: 'Member has outstanding loan' });
     return;
   }
-  
+
   // Simple interest calculation (10% per annum)
   const interestRate = 0.10;
   const interest = (amount * interestRate * durationMonths) / 12;
   const totalRepayment = amount + interest;
   const monthlyRepayment = totalRepayment / durationMonths;
-  
+
   const count = await prisma.loanApplication.count({ where: { member: { schoolId } } });
   const applicationNo = `LN-${String(count + 1).padStart(6, '0')}`;
-  
+
   const application = await prisma.loanApplication.create({
     data: {
       applicationNo, memberId, amount, purpose, durationMonths,
       status: 'PENDING', monthlyRepayment,
     },
   });
-  
+
   res.status(201).json({ success: true, data: application });
+}));
+
+// GET /api/v1/sacco/loans - List all loan applications
+router.get('/loans', authMiddleware, authorize('SCHOOL_OWNER', 'ADMIN'), asyncHandler(async (req: AuthRequest, res: Response) => {
+  const schoolId = req.user?.schoolId;
+  const { status } = req.query;
+
+  if (!schoolId) {
+    res.status(400).json({ success: false, message: 'School not found' });
+    return;
+  }
+
+  const where: any = { member: { schoolId } };
+  if (status) where.status = status;
+
+  const applications = await prisma.loanApplication.findMany({
+    where,
+    include: {
+      member: {
+        include: { user: { select: { firstName: true, lastName: true } } }
+      }
+    },
+    orderBy: { appliedAt: 'desc' },
+  });
+
+  res.json({ success: true, data: applications });
 }));
 
 // POST /api/v1/sacco/loans/:id/approve - Approve loan
 router.post('/loans/:id/approve', authMiddleware, authorize('SCHOOL_OWNER', 'ADMIN'), asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
-  
+
   const application = await prisma.loanApplication.findUnique({
     where: { id },
     include: { member: true },
   });
-  
+
   if (!application || application.status !== 'PENDING') {
     res.status(400).json({ success: false, message: 'Invalid application' });
     return;
   }
-  
+
   const updated = await prisma.$transaction(async (tx) => {
     const app = await tx.loanApplication.update({
       where: { id },
       data: { status: 'APPROVED', approvedBy: req.user?.id, approvalDate: new Date() },
     });
-    
+
     await tx.saccoMember.update({
       where: { id: application.memberId },
       data: {
@@ -203,7 +263,7 @@ router.post('/loans/:id/approve', authMiddleware, authorize('SCHOOL_OWNER', 'ADM
         outstandingLoan: { increment: application.amount },
       },
     });
-    
+
     // Create loan disbursement transaction
     await tx.saccoTransaction.create({
       data: {
@@ -216,10 +276,10 @@ router.post('/loans/:id/approve', authMiddleware, authorize('SCHOOL_OWNER', 'ADM
         schoolId: application.member.schoolId,
       },
     });
-    
+
     return app;
   });
-  
+
   res.json({ success: true, data: updated });
 }));
 
