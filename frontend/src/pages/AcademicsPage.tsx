@@ -84,6 +84,13 @@ export default function AcademicsPage() {
     enabled: !!reportStudent?.id && !!reportTerm?.id && activeTab === 'reports',
   });
 
+  // Query to get all class records for position calculation
+  const { data: classRecordsData } = useQuery({
+    queryKey: ['class-records', reportStudent?.classId, reportTerm?.id],
+    queryFn: () => academicApi.getRecords({ classId: reportStudent.classId, academicTermId: reportTerm.id }),
+    enabled: !!reportStudent?.classId && !!reportTerm?.id && activeTab === 'reports',
+  });
+
   const { data: allStudentsData } = useQuery({
     queryKey: ['all-students-list'],
     queryFn: () => studentApi.getAll({ limit: 1000 }),
@@ -96,6 +103,7 @@ export default function AcademicsPage() {
   const marksStudents = marksStudentsData?.data?.data || [];
   const existingRecords = existingRecordsData?.data?.data || [];
   const studentRecords = studentRecordsData?.data?.data || [];
+  const classRecords = classRecordsData?.data?.data || [];
   const allStudents = allStudentsData?.data?.data || [];
 
   // Mutations
@@ -210,6 +218,34 @@ export default function AcademicsPage() {
   const calculateAverage = () => {
     if (studentRecords.length === 0) return 0;
     return (calculateTotal() / studentRecords.length).toFixed(1);
+  };
+
+  const calculatePosition = () => {
+    if (classRecords.length === 0 || !reportStudent) return 'N/A';
+    
+    // Group records by student and calculate average
+    const studentAverages: { studentId: string; average: number }[] = [];
+    const studentIdSet = new Set(classRecords.map((r: any) => r.studentId));
+    
+    studentIdSet.forEach((studentId) => {
+      const studentRecs = classRecords.filter((r: any) => r.studentId === studentId);
+      const total = studentRecs.reduce((sum: number, r: any) => sum + r.marksObtained, 0);
+      const avg = studentRecs.length > 0 ? total / studentRecs.length : 0;
+      studentAverages.push({ studentId: String(studentId), average: avg });
+    });
+    
+    // Sort by average (descending)
+    studentAverages.sort((a, b) => b.average - a.average);
+    
+    // Find position of current student
+    const position = studentAverages.findIndex(s => s.studentId === reportStudent.id) + 1;
+    return position > 0 ? `${position}${getOrdinalSuffix(position)}` : 'N/A';
+  };
+
+  const getOrdinalSuffix = (n: number) => {
+    const s = ['th', 'st', 'nd', 'rd'];
+    const v = n % 100;
+    return s[(v - 20) % 10] || s[v] || s[0];
   };
 
   const handlePrintReport = () => {
@@ -674,7 +710,7 @@ export default function AcademicsPage() {
                   </div>
                   <div className="bg-gray-900 text-white p-4 border-2 border-gray-900 rounded-xl text-center">
                     <p className="text-xs font-bold opacity-70 uppercase mb-1">Class Position</p>
-                    <p className="text-3xl font-black">N/A</p>
+                    <p className="text-3xl font-black">{calculatePosition()}</p>
                   </div>
                 </div>
 
