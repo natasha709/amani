@@ -147,6 +147,11 @@ router.get('/', authMiddleware, asyncHandler(async (req: AuthRequest, res: Respo
         parent: {
           select: { id: true, firstName: true, lastName: true, phone: true },
         },
+        academicRecords: {
+          take: 1,
+          orderBy: { createdAt: 'desc' },
+          include: { subject: true, academicTerm: true },
+        },
       },
       skip,
       take: parseInt(limit as string),
