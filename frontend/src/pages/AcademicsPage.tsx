@@ -28,6 +28,19 @@ export default function AcademicsPage() {
   const [marksSubject, setMarksSubject] = useState<any>(null);
   const [marksTerm, setMarksTerm] = useState<any>(null);
   const [marksInput, setMarksInput] = useState<Record<string, number>>({});
+  const [showQuickRegister, setShowQuickRegister] = useState(false);
+  const [quickRegisterData, setQuickRegisterData] = useState({
+    firstName: '',
+    lastName: '',
+    gender: 'MALE',
+    classId: '',
+    phone: '',
+    address: '',
+    section: 'DAY',
+    parentFirstName: '',
+    parentLastName: '',
+    score: undefined as number | undefined,
+  });
 
   // Reports state
   const [reportStudent, setReportStudent] = useState<any>(null);
@@ -118,6 +131,35 @@ export default function AcademicsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['existing-records'] });
       alert('Successfully saved all marks!');
+    },
+  });
+
+  const quickRegisterMutation = useMutation({
+    mutationFn: async (data: any) => {
+      // Separate student data from score
+      const { score, ...studentData } = data;
+      
+      // Create the student first
+      const studentResponse = await studentApi.create({ ...studentData, classId: marksClass.id });
+      const studentId = studentResponse.data.data.id;
+      
+      // If score is provided and we have subject and term, create the marks record
+      if (score !== undefined && score !== null && marksSubject && marksTerm) {
+        await academicApi.createRecord({
+          studentId,
+          subjectId: marksSubject.id,
+          academicTermId: marksTerm.id,
+          marksObtained: score,
+        });
+      }
+      return studentResponse;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['marks-students'] });
+      queryClient.invalidateQueries({ queryKey: ['existing-records'] });
+      setShowQuickRegister(false);
+      setQuickRegisterData({ firstName: '', lastName: '', gender: 'MALE', classId: '', phone: '', address: '', section: 'DAY', parentFirstName: '', parentLastName: '', score: undefined });
+      alert('Student registered successfully with marks!');
     },
   });
 
@@ -373,13 +415,13 @@ export default function AcademicsPage() {
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">2. Select Subject</label>
                 <select
                   value={marksSubject?.id || ''}
-                  onChange={(e) => setMarksSubject(marksClass?.subjects?.find((s: any) => s.subject.id === e.target.value)?.subject)}
+                  onChange={(e) => setMarksSubject(subjects.find((s: any) => s.id === e.target.value))}
                   className="w-full px-4 py-2 bg-white border rounded-xl"
                   disabled={!marksClass}
                 >
                   <option value="">Select a subject...</option>
-                  {marksClass?.subjects?.map((cs: any) => (
-                    <option key={cs.subject.id} value={cs.subject.id}>{cs.subject.name}</option>
+                  {subjects.map((subject: any) => (
+                    <option key={subject.id} value={subject.id}>{subject.name}</option>
                   ))}
                 </select>
               </div>
@@ -406,13 +448,22 @@ export default function AcademicsPage() {
                   <h3 className="text-lg font-bold text-gray-900">Entering Marks for {marksSubject.name}</h3>
                   <p className="text-sm text-gray-500">{marksClass.name} - {marksTerm.name}</p>
                 </div>
-                <button
-                  onClick={handleSaveMarks}
-                  disabled={saveMarksMutation.isPending}
-                  className="btn btn-primary"
-                >
-                  {saveMarksMutation.isPending ? 'Saving...' : 'Save All Marks'}
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setShowQuickRegister(true)}
+                    className="btn btn-secondary"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Register Student
+                  </button>
+                  <button
+                    onClick={handleSaveMarks}
+                    disabled={saveMarksMutation.isPending}
+                    className="btn btn-primary"
+                  >
+                    {saveMarksMutation.isPending ? 'Saving...' : 'Save All Marks'}
+                  </button>
+                </div>
               </div>
 
               <div className="card overflow-hidden border-gray-200 shadow-xl">
@@ -453,7 +504,7 @@ export default function AcademicsPage() {
 
                 {marksStudents.length === 0 && (
                   <div className="p-12 text-center text-gray-400">
-                    No students found in {marksClass.name}.
+                    No students found in {marksClass.name}. Click "Register Student" button to add students.
                   </div>
                 )}
               </div>
@@ -709,6 +760,157 @@ export default function AcademicsPage() {
               <button type="submit" className="btn btn-primary w-full py-3" disabled={assignMutation.isPending}>
                 {assignMutation.isPending ? 'Assigning...' : 'Confirm Assignment'}
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Student Registration Modal */}
+      {showQuickRegister && marksClass && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-bold">Register Student & Enter Marks</h2>
+                <p className="text-sm text-gray-500">for {marksClass.name} - {marksSubject?.name}</p>
+              </div>
+              <button onClick={() => setShowQuickRegister(false)}><X className="w-5 h-5" /></button>
+            </div>
+
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const { score, ...studentData } = quickRegisterData;
+              quickRegisterMutation.mutate({ ...studentData, classId: marksClass.id });
+            }} className="space-y-4">
+              {/* Student Details Section */}
+              <div className="border-b pb-4">
+                <h3 className="font-medium text-gray-900 mb-3">Student Details</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                    <input
+                      value={quickRegisterData.firstName}
+                      onChange={(e) => setQuickRegisterData({ ...quickRegisterData, firstName: e.target.value })}
+                      required
+                      placeholder="Enter first name"
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                    <input
+                      value={quickRegisterData.lastName}
+                      onChange={(e) => setQuickRegisterData({ ...quickRegisterData, lastName: e.target.value })}
+                      required
+                      placeholder="Enter last name"
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4 mt-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Gender *</label>
+                    <select
+                      value={quickRegisterData.gender}
+                      onChange={(e) => setQuickRegisterData({ ...quickRegisterData, gender: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    >
+                      <option value="MALE">Male</option>
+                      <option value="FEMALE">Female</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Section *</label>
+                    <select
+                      value={quickRegisterData.section}
+                      onChange={(e) => setQuickRegisterData({ ...quickRegisterData, section: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    >
+                      <option value="DAY">Day Scholar</option>
+                      <option value="BOARDING">Boarding</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4 mt-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                    <input
+                      value={quickRegisterData.phone}
+                      onChange={(e) => setQuickRegisterData({ ...quickRegisterData, phone: e.target.value })}
+                      placeholder="Enter phone number"
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                    <input
+                      value={quickRegisterData.address}
+                      onChange={(e) => setQuickRegisterData({ ...quickRegisterData, address: e.target.value })}
+                      placeholder="Enter address"
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Parent Details Section */}
+              <div className="border-b pb-4">
+                <h3 className="font-medium text-gray-900 mb-3">Parent Details</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Parent First Name</label>
+                    <input
+                      value={quickRegisterData.parentFirstName}
+                      onChange={(e) => setQuickRegisterData({ ...quickRegisterData, parentFirstName: e.target.value })}
+                      placeholder="Enter parent first name"
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Parent Last Name</label>
+                    <input
+                      value={quickRegisterData.parentLastName}
+                      onChange={(e) => setQuickRegisterData({ ...quickRegisterData, parentLastName: e.target.value })}
+                      placeholder="Enter parent last name"
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Marks Section */}
+              {marksTerm && (
+                <div className="pt-2">
+                  <h3 className="font-medium text-gray-900 mb-3">Marks Entry</h3>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Score (/100)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={quickRegisterData.score || ''}
+                      onChange={(e) => setQuickRegisterData({ ...quickRegisterData, score: e.target.value ? Number(e.target.value) : undefined })}
+                      placeholder="Enter score"
+                      className="w-full px-3 py-2 border rounded-lg text-lg font-bold"
+                    />
+                  </div>
+                  {quickRegisterData.score !== undefined && quickRegisterData.score !== null && (
+                    <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg mt-3">
+                      <span className="text-sm text-gray-600">Auto Grade:</span>
+                      <span className={`px-4 py-1.5 rounded-full font-bold text-sm ${quickRegisterData.score >= 50 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {calculateGrade(quickRegisterData.score)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              <div className="pt-2">
+                <button type="submit" className="btn btn-primary w-full py-3" disabled={quickRegisterMutation.isPending}>
+                  {quickRegisterMutation.isPending ? 'Registering...' : 'Register Student'}
+                </button>
+              </div>
             </form>
           </div>
         </div>
