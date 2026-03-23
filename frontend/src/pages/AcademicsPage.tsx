@@ -643,7 +643,7 @@ export default function AcademicsPage() {
                           <td className="border-r-2 border-gray-900 p-4 text-gray-900 uppercase text-sm">{rec.subject.name}</td>
                           <td className="border-r-2 border-gray-900 p-4 text-center text-lg">{rec.marksObtained}</td>
                           <td className="border-r-2 border-gray-900 p-4 text-center">
-                            <span className="text-xl font-black">{rec.grade}</span>
+                            <span className="text-xl font-black">{calculateGrade(rec.marksObtained)}</span>
                           </td>
                           <td className="p-4 italic text-gray-500 text-sm">
                             {rec.marksObtained >= 80 ? 'Excellent performance. Keep it up!' :
