@@ -4,6 +4,17 @@ import { studentApi, academicApi } from '../lib/api';
 import { countryCodes } from '../lib/countryCodes';
 import { Plus, Search, Filter, X, Eye, Pencil, Trash2 } from 'lucide-react';
 
+// Grade calculation function
+function calculateGrade(score: number): string {
+  if (score >= 90) return 'A+';
+  if (score >= 80) return 'A';
+  if (score >= 70) return 'B+';
+  if (score >= 60) return 'B';
+  if (score >= 50) return 'C';
+  if (score >= 40) return 'D';
+  return 'F';
+}
+
 // Edit Student Form Component
 function EditStudentForm({ student, classes, onSubmit, onCancel, isLoading }: {
   student: any;
@@ -159,6 +170,9 @@ export default function StudentsPage() {
     countryCode: '+256',
     address: '',
     section: 'DAY' as 'DAY' | 'BOARDING',
+    score: '' as string | number,
+    termId: '',
+    subjectId: '',
   });
 
   const queryClient = useQueryClient();
@@ -171,13 +185,48 @@ export default function StudentsPage() {
 
   const classes = classesData?.data?.data || [];
 
+  // Fetch terms
+  const { data: termsData } = useQuery({
+    queryKey: ['terms'],
+    queryFn: () => academicApi.getTerms(),
+  });
+
+  const terms = termsData?.data?.data || [];
+
+  // Fetch subjects
+  const { data: subjectsData } = useQuery({
+    queryKey: ['subjects'],
+    queryFn: () => academicApi.getSubjects(),
+  });
+
+  const subjects = subjectsData?.data?.data || [];
+
   const { data, isLoading } = useQuery({
     queryKey: ['students', { search, page, ...filters }],
     queryFn: () => studentApi.getAll({ search, page, ...filters }),
   });
 
   const createMutation = useMutation({
-    mutationFn: studentApi.create,
+    mutationFn: async (data: any) => {
+      // Create the student first
+      const response = await studentApi.create(data);
+      const studentId = response?.data?.data?.id;
+      
+      // If score, termId, and subjectId are provided, create the marks record
+      const score = formData.score;
+      const termId = formData.termId;
+      const subjectId = formData.subjectId;
+      
+      if (studentId && score && termId) {
+        await academicApi.createRecord({
+          studentId,
+          subjectId: subjectId || undefined,
+          academicTermId: termId,
+          marksObtained: Number(score),
+        });
+      }
+      return response;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
       setShowModal(false);
@@ -191,7 +240,10 @@ export default function StudentsPage() {
         phone: '', 
         countryCode: '+256', 
         address: '', 
-        section: 'DAY' 
+        section: 'DAY',
+        score: '',
+        termId: '',
+        subjectId: '',
       });
     },
   });
@@ -354,8 +406,12 @@ export default function StudentsPage() {
                 <th>Name</th>
                 <th>Gender</th>
                 <th>Class</th>
-                <th>Parent</th>
                 <th>Section</th>
+                <th>Phone</th>
+                <th>Address</th>
+                <th>Parent</th>
+                <th>Score</th>
+                <th>Grade</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -370,17 +426,27 @@ export default function StudentsPage() {
                   <td>{student.gender}</td>
                   <td>{student.class?.name || 'Not assigned'}</td>
                   <td>
+                    <span className={`badge ${student.section === 'BOARDING' ? 'badge-primary' : 'badge-outline'
+                      }`}>
+                      {student.section === 'BOARDING' ? 'Boarding' : 'Day'}
+                    </span>
+                  </td>
+                  <td>{student.phone || '-'}</td>
+                  <td>{student.address || '-'}</td>
+                  <td>
                     {student.parent ? (
                       `${student.parent.firstName} ${student.parent.lastName}`
                     ) : (
                       '-'
                     )}
                   </td>
+                  <td>{student.academicRecords?.[0]?.marksObtained || '-'}</td>
                   <td>
-                    <span className={`badge ${student.section === 'BOARDING' ? 'badge-primary' : 'badge-outline'
-                      }`}>
-                      {student.section === 'BOARDING' ? 'Boarding' : 'Day'}
-                    </span>
+                    {student.academicRecords?.[0]?.marksObtained !== undefined ? (
+                      <span className={`badge ${Number(student.academicRecords[0].marksObtained) >= 50 ? 'badge-success' : 'badge-error'}`}>
+                        {calculateGrade(Number(student.academicRecords[0].marksObtained))}
+                      </span>
+                    ) : '-'}
                   </td>
                   <td>
                     <span className={`badge ${student.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'
@@ -574,6 +640,61 @@ export default function StudentsPage() {
                     </div>
                     <p className="text-xs text-gray-500 mt-1">Enter 9 digits (e.g., 772123456)</p>
                   </div>
+              </div>
+
+              {/* Marks Entry Section */}
+              <div className="border-t pt-4 mt-4">
+                <h3 className="font-medium text-gray-900 mb-3">Marks Entry (Optional)</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Term</label>
+                    <select
+                      value={formData.termId}
+                      onChange={e => setFormData({ ...formData, termId: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value="">Select Term</option>
+                      {terms.map((t: any) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                    <select
+                      value={formData.subjectId}
+                      onChange={e => setFormData({ ...formData, subjectId: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value="">Select Subject</option>
+                      {subjects.map((s: any) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                {formData.termId && (
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Score (/100)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={formData.score}
+                      onChange={e => setFormData({ ...formData, score: e.target.value })}
+                      placeholder="Enter score"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-lg font-bold"
+                    />
+                  </div>
+                )}
+                {formData.score && formData.score !== '' && (
+                  <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg mt-3">
+                    <span className="text-sm text-gray-600">Grade:</span>
+                    <span className={`px-4 py-1.5 rounded-full font-bold text-sm ${Number(formData.score) >= 50 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                      {calculateGrade(Number(formData.score))}
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="flex gap-3 p-6 border-t border-gray-100 bg-gray-50 rounded-b-xl shrink-0">
                 <button
