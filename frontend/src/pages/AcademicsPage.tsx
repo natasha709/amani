@@ -529,28 +529,48 @@ export default function AcademicsPage() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <select
                     value={reportStudent?.id || ''}
-                    onChange={(e) => setReportStudent(allStudents.find((s: any) => s.id === e.target.value))}
+                    onChange={(e) => {
+                      const student = allStudents.find((s: any) => s.id === e.target.value);
+                      setReportStudent(student || null);
+                    }}
                     className="w-full pl-10 pr-4 py-2 bg-white border rounded-xl appearance-none"
                   >
                     <option value="">Search student for report...</option>
-                    {allStudents.map((std: any) => (
-                      <option key={std.id} value={std.id}>{std.firstName} {std.lastName} ({std.studentNo})</option>
-                    ))}
+                    {allStudents.length > 0 ? (
+                      allStudents.map((std: any) => (
+                        <option key={std.id} value={std.id}>{std.firstName} {std.lastName} ({std.studentNo})</option>
+                      ))
+                    ) : (
+                      <option value="" disabled>No students found</option>
+                    )}
                   </select>
                 </div>
+                {allStudents.length === 0 && (
+                  <p className="text-xs text-red-500 mt-1">No students found. Please register students first.</p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">2. Select Term</label>
                 <select
                   value={reportTerm?.id || ''}
-                  onChange={(e) => setReportTerm(terms.find((t: any) => t.id === e.target.value))}
+                  onChange={(e) => {
+                    const term = terms.find((t: any) => t.id === e.target.value);
+                    setReportTerm(term || null);
+                  }}
                   className="w-full px-4 py-2 bg-white border rounded-xl"
                 >
                   <option value="">Select academic term...</option>
-                  {terms.map((t: any) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
+                  {terms.length > 0 ? (
+                    terms.map((t: any) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))
+                  ) : (
+                    <option value="" disabled>No terms found</option>
+                  )}
                 </select>
+                {terms.length === 0 && (
+                  <p className="text-xs text-red-500 mt-1">No terms found. Please create academic terms first.</p>
+                )}
               </div>
             </div>
           </div>
