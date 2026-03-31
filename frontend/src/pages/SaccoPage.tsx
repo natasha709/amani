@@ -42,7 +42,7 @@ export default function SaccoPage() {
   });
 
   // Fetch Eligible Staff for Registration
-  const { data: staffData } = useQuery({
+  const { data: staffData, isLoading: isLoadingStaff } = useQuery({
     queryKey: ['eligible-staff'],
     queryFn: () => saccoApi.getEligibleStaff(),
     enabled: showMemberModal
@@ -413,20 +413,23 @@ export default function SaccoPage() {
               }} className="space-y-6">
                 <div>
                   <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-3 italic">1. Select Staff Member</label>
-                  <select name="userId" required className="w-full px-5 py-4 bg-gray-50 border-none rounded-[1.25rem] font-bold text-gray-950 focus:ring-4 focus:ring-indigo-100 transition-all outline-none">
-                    <option value="">Staff to enroll...</option>
+                  <select name="userId" required className="w-full px-5 py-4 bg-gray-50 border-none rounded-[1.25rem] font-bold text-gray-950 focus:ring-4 focus:ring-indigo-100 transition-all outline-none" disabled={isLoadingStaff || eligibleStaff.length === 0}>
+                    <option value="">{isLoadingStaff ? 'Loading staff...' : eligibleStaff.length === 0 ? 'No eligible staff available' : 'Staff to enroll...'}</option>
                     {eligibleStaff.map((staff: any) => (
                       <option key={staff.id} value={staff.id}>{staff.firstName} {staff.lastName} ({staff.role})</option>
                     ))}
                   </select>
+                  {eligibleStaff.length === 0 && !isLoadingStaff && (
+                    <p className="text-xs text-gray-500 mt-2 italic">All eligible staff are already sacco members.</p>
+                  )}
                 </div>
 
                 <div>
                   <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-3 italic">2. Membership Tier</label>
                   <select name="memberType" required className="w-full px-5 py-4 bg-gray-50 border-none rounded-[1.25rem] font-bold text-gray-950 focus:ring-4 focus:ring-indigo-100 transition-all outline-none">
                     <option value="TEACHER">Regular Teacher</option>
-                    <option value="ADMIN">Administrator</option>
-                    <option value="FOUNDER">School Founder</option>
+                    <option value="STAFF">Administrator</option>
+                    <option value="ALUMNI">School Founder</option>
                   </select>
                 </div>
 
