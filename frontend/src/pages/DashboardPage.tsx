@@ -4,26 +4,14 @@ import {
   Users,
   GraduationCap,
   PiggyBank,
-  TrendingUp,
   ArrowUpRight,
   ArrowDownRight,
   PieChart as PieChartIcon,
   Calendar,
   Wallet,
-  ArrowRight,
-  Plus,
-  Bell,
-  ChevronRight,
-  CreditCard,
-  Activity,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
   Trophy,
   Target,
-  BarChart3,
-  LineChart,
-  Zap
+  LineChart
 } from 'lucide-react';
 import {
   XAxis,
@@ -41,12 +29,14 @@ import {
 } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { useState } from 'react';
 import { Skeleton } from '../components/Skeleton';
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'year'>('month');
 
   // Data Queries
@@ -111,6 +101,12 @@ export default function DashboardPage() {
     { month: 'Apr', collected: 6.1, target: 5.0 },
     { month: 'May', collected: 5.9, target: 5.0 },
     { month: 'Jun', collected: 5.5, target: 5.0 },
+    { month: 'Jul', collected: 5.7, target: 5.0 },
+    { month: 'Aug', collected: 6.3, target: 5.0 },
+    { month: 'Sep', collected: 5.8, target: 5.0 },
+    { month: 'Oct', collected: 6.0, target: 5.0 },
+    { month: 'Nov', collected: 5.6, target: 5.0 },
+    { month: 'Dec', collected: 6.4, target: 5.0 },
   ];
 
   // Compact Metric Card Component
@@ -125,6 +121,7 @@ export default function DashboardPage() {
     subtitle?: string;
     delay?: number;
     loading?: boolean;
+    onClick?: () => void;
   }
 
   const colorMap: Record<ColorKey, { bg: string; text: string; ring: string }> = {
@@ -136,12 +133,12 @@ export default function DashboardPage() {
     blue: { bg: 'bg-blue-50', text: 'text-blue-600', ring: 'ring-blue-500/20' },
   };
 
-  const MetricCard = ({ title, value, icon: Icon, color = 'indigo', change, subtitle, delay = 0, loading }: MetricCardProps) => {
+  const MetricCard = ({ title, value, icon: Icon, color = 'indigo', change, subtitle, delay = 0, loading, onClick }: MetricCardProps) => {
     const colors = colorMap[color];
 
     if (loading) {
       return (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }} className="rounded-xl border border-gray-200 bg-white p-4">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }} className="rounded-lg border border-gray-200 bg-white p-3">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="h-4 w-16 bg-gray-200 rounded animate-pulse" />
@@ -159,11 +156,20 @@ export default function DashboardPage() {
         animate={{ opacity: 1, y: 0 }}
         whileHover={{ y: -2 }}
         transition={{ delay }}
-        className={`group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-200 ring-1 ${colors.ring}`}
+          onClick={onClick}
+          className={`group relative overflow-hidden rounded-lg border border-gray-200 bg-white p-3 shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-200 ring-1 ${colors.ring}`}
+          role={onClick ? 'button' : undefined}
+          tabIndex={onClick ? 0 : undefined}
+          onKeyDown={onClick ? (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onClick();
+            }
+          } : undefined}
       >
         <div className="flex items-start justify-between">
-          <div className={`p-2 rounded-lg ${colors.bg} ${colors.text}`}>
-            <Icon className="w-5 h-5" />
+            <div className={`p-1.5 rounded-md ${colors.bg} ${colors.text}`}>
+              <Icon className="w-4 h-4" />
           </div>
           {change && (
             <div className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold ${
@@ -177,7 +183,7 @@ export default function DashboardPage() {
         
         <div className="mt-3">
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{title}</p>
-          <h3 className="text-2xl font-bold text-gray-900 tracking-tight">
+          <h3 className="text-xl font-bold text-gray-900 tracking-tight">
             {typeof value === 'number' ? value.toLocaleString() : value}
           </h3>
           {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
@@ -239,7 +245,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Metric Cards - 2x2 grid on mobile, 4 on desktop */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <MetricCard
           title="Students"
           value={summary?.activeStudents || 0}
@@ -248,6 +254,7 @@ export default function DashboardPage() {
           change="+4.2%"
           delay={0.1}
           loading={summaryLoading}
+          onClick={() => navigate('/students')}
         />
         <MetricCard
           title="Staff"
@@ -256,16 +263,18 @@ export default function DashboardPage() {
           color="violet"
           delay={0.2}
           loading={summaryLoading}
+          onClick={() => navigate('/staff')}
         />
         <MetricCard
           title="Revenue"
-          value={finances?.received ? formatAmount(finances.received) : '0'}
+          value={finances?.receivedRevenue ? formatAmount(finances.receivedRevenue) : '0'}
           icon={Wallet}
           color="emerald"
           change="+12.5%"
           subtitle="This period"
           delay={0.3}
           loading={financesLoading}
+          onClick={() => navigate('/payments')}
         />
         <MetricCard
           title="SACCO"
@@ -274,6 +283,7 @@ export default function DashboardPage() {
           color="amber"
           delay={0.4}
           loading={saccoLoading}
+          onClick={() => navigate('/sacco')}
         />
       </div>
 
@@ -537,28 +547,7 @@ export default function DashboardPage() {
         </motion.div>
       </div>
 
-      {/* Quick Actions Bar */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.9 }}
-        className="flex flex-wrap gap-3"
-      >
-        {[
-          { icon: Users, label: 'Add Student', color: 'emerald' },
-          { icon: Wallet, label: 'Payment', color: 'blue' },
-          { icon: GraduationCap, label: 'Add Staff', color: 'violet' },
-          { icon: Bell, label: 'Announcement', color: 'amber' },
-        ].map((action) => (
-          <button
-            key={action.label}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-sm transition-all group"
-          >
-            <action.icon className={`w-4 h-4 text-${action.color}-600`} />
-            <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900">{action.label}</span>
-          </button>
-        ))}
-      </motion.div>
+
     </div>
   );
 }
